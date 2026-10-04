@@ -222,7 +222,7 @@ fun SettingsScreen(store: AuraStore, nav: Nav) {
                 Spacer(Modifier.height(12.dp))
                 PrimaryButton(
                     "שמירה",
-                    { store.setDefaultPrice(newPrice) },
+                    { store.updateDefaultPrice(newPrice) },
                     enabled = newPrice > 0 && newPrice != store.defaultPrice
                 )
             }

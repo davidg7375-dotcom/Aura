@@ -224,7 +224,7 @@ class AuraStore(private val app: Context) {
         return true
     }
 
-    fun setDefaultPrice(p: Int) {
+    fun updateDefaultPrice(p: Int) {
         defaultPrice = p
         persist()
     }
