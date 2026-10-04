@@ -21,7 +21,17 @@ jobs:
           gradle-version: 8.10.2
 
       - name: Build release APK
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: |
+          set +e
+          gradle assembleRelease --no-daemon --stacktrace > build.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            for i in 1 2 3 4 5 6 7 8; do
+              chunk=$(grep -E "^e: |What went wrong|error:" -A2 build.log | sed -n "$(( (i-1)*12 + 1 )),$(( i*12 ))p" | sed 's/file:\/\/\/home\/runner\/work\/Aura\/Aura\///' | tr '\n' '|' | cut -c1-1800)
+              [ -n "$chunk" ] && echo "::error title=build-$i::$chunk"
+            done
+          fi
+          exit $code
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
