@@ -33,9 +33,12 @@ jobs:
           fi
           exit $code
 
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk AURA-release.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AURA-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: AURA-release
+          path: AURA-release.apk
           if-no-files-found: error
