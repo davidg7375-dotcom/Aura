@@ -18,11 +18,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -65,7 +65,7 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
             val total = store.totalDebt()
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge(Icons.Outlined.AccountBalanceWallet, size = 52.dp)
+                    IconBadge(Icons.Rounded.AccountBalanceWallet, size = 52.dp)
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text("סה\"כ חובות פתוחים", fontSize = 14.sp, color = AuraColors.Muted)
@@ -111,7 +111,7 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                             color = AuraColors.Debt
                         )
                         Icon(
-                            if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
                             null,
                             tint = AuraColors.Muted
                         )
@@ -125,8 +125,102 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                     }
                 }
             }
+            val cross = store.crossDebts()
+            if (cross.isNotEmpty()) {
+                Text(
+                    "התחשבנות בין משלמים",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuraColors.Ink,
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+                Text(
+                    "פגישות ששולמו על ידי מישהו אחר מהמשלם שלהן",
+                    fontSize = 13.sp,
+                    color = AuraColors.Muted
+                )
+                cross.forEach { c ->
+                    val key = "x_${c.debtorId}_${c.creditorId}"
+                    val open = expanded[key] ?: true
+                    AuraCard(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { expanded[key] = !open },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Avatar(size = 46.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "${store.payerName(c.debtorId)} חייב ל־${store.payerName(c.creditorId)}",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AuraColors.Ink
+                                )
+                                Text(
+                                    "${c.sessions.size} פגישות ששולמו על ידי ${store.payerName(c.creditorId)}",
+                                    fontSize = 13.sp,
+                                    color = AuraColors.Muted
+                                )
+                            }
+                            Text(
+                                fmtMoney(c.net),
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AuraColors.SoonFg
+                            )
+                            Icon(
+                                if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                null,
+                                tint = AuraColors.Muted
+                            )
+                        }
+                        if (open) {
+                            Spacer(Modifier.height(8.dp))
+                            c.sessions.forEachIndexed { i, s ->
+                                if (i > 0) HorizontalDivider(color = AuraColors.Line)
+                                CrossRow(s) { nav.go(Route.Details(s.id)) }
+                            }
+                            if (c.offsetting > 0) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "בניכוי ${fmtMoney(c.offsetting)} שהיו בכיוון ההפוך",
+                                    fontSize = 12.sp,
+                                    color = AuraColors.Muted
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+@Composable
+private fun CrossRow(s: Session, onOpen: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(AuraColors.SoonFg)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("${fmtDate(s.date)} · פגישה", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = AuraColors.Ink)
+            Text("${fmtTime(s.time)} · שולם", fontSize = 13.sp, color = AuraColors.Muted)
+        }
+        Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
     }
 }
 
@@ -160,7 +254,7 @@ private fun DebtRow(s: Session, onOpen: () -> Unit, onPaid: () -> Unit) {
                     .background(AuraColors.PaidBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Check, "סימון כשולם", tint = AuraColors.PaidFg, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Check, "סימון כשולם", tint = AuraColors.PaidFg, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -182,7 +276,7 @@ fun PayersScreen(store: AuraStore, nav: Nav) {
                         .background(AuraColors.Green),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Add, "הוסף משלם", tint = androidx.compose.ui.graphics.Color.White)
+                    Icon(Icons.Rounded.Add, "הוסף משלם", tint = androidx.compose.ui.graphics.Color.White)
                 }
             }
         }
@@ -211,6 +305,12 @@ fun PayersScreen(store: AuraStore, nav: Nav) {
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (st.debt > 0) AuraColors.Debt else AuraColors.PaidFg
                             )
+                            if (st.owes > 0) {
+                                Text("חוב לאחרים: ${fmtMoney(st.owes)}", fontSize = 11.sp, color = AuraColors.Debt)
+                            }
+                            if (st.owed > 0) {
+                                Text("לקבל: ${fmtMoney(st.owed)}", fontSize = 11.sp, color = AuraColors.PaidFg)
+                            }
                         }
                     }
                 }

@@ -26,6 +26,7 @@ sealed interface Route {
     data object Payers : Route
     data object Calendar : Route
     data object Settings : Route
+    data object Bulk : Route
     data class Details(val id: String) : Route
     data class Form(val editId: String? = null, val date: LocalDate? = null) : Route
     data class PayerSessions(val payerId: String) : Route
@@ -91,12 +92,13 @@ fun AuraApp() {
                     is Route.Payers -> PayersScreen(store, nav)
                     is Route.Calendar -> CalendarScreen(store, nav)
                     is Route.Settings -> SettingsScreen(store, nav)
+                    is Route.Bulk -> BulkScreen(store, nav)
                     is Route.Details -> DetailsScreen(store, nav, r.id)
                     is Route.Form -> FormScreen(store, nav, r.editId, r.date)
                     is Route.PayerSessions -> SessionsScreen(store, nav, r.payerId)
                 }
             }
-            if (nav.current !is Route.Form) {
+            if (nav.current !is Route.Form && nav.current !is Route.Bulk) {
                 BottomBar(nav)
             }
         }

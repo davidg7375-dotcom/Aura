@@ -20,8 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -71,7 +71,7 @@ fun CalendarScreen(store: AuraStore, nav: Nav) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // בעברית: "קודם" מימין ומצביע ימינה, "הבא" משמאל ומצביע שמאלה
                     IconButton(onClick = { month = month.minusMonths(1) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "חודש קודם", tint = AuraColors.Ink)
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "חודש קודם", tint = AuraColors.Ink)
                     }
                     Text(
                         fmtMonthYear(month),
@@ -82,7 +82,7 @@ fun CalendarScreen(store: AuraStore, nav: Nav) {
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     IconButton(onClick = { month = month.plusMonths(1) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "חודש הבא", tint = AuraColors.Ink)
+                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "חודש הבא", tint = AuraColors.Ink)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -231,7 +231,7 @@ fun SettingsScreen(store: AuraStore, nav: Nav) {
                 Text("התראות", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "תזכורות נשלחות כהתראות מהמכשיר. אם הן לא מופיעות, יש לאפשר התראות עבור AURA.",
+                    "תזכורות נשלחות כהתראות מהמכשיר. אם הן לא מופיעות, יש לאפשר התראות עבור Breathe.",
                     fontSize = 14.sp,
                     color = AuraColors.Muted
                 )

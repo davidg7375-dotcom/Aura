@@ -23,12 +23,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -87,6 +87,8 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
     var paid by remember { mutableStateOf(existing?.paid ?: false) }
     var paidDate by remember { mutableStateOf(existing?.paidDate ?: LocalDate.now()) }
+    var paidById by remember { mutableStateOf(existing?.paidById) }
+    var paidByMenu by remember { mutableStateOf(false) }
 
     var remindOn by remember {
         mutableStateOf(
@@ -132,6 +134,7 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             payerId = payerId,
             paid = paid,
             paidDate = if (paid) paidDate else null,
+            paidById = if (paid && paidById != payerId) paidById else null,
             notes = notes.trim(),
             remindBeforeMin = if (remindOn) remindBefore else null,
             remindPay = remindOn && remindPay,
@@ -158,12 +161,12 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            FormRow(Icons.Outlined.CalendarMonth, "תאריך", fmtDate(date)) { dialog = "date" }
-            FormRow(Icons.Outlined.Schedule, "שעה", fmtTime(time)) { dialog = "time" }
+            FormRow(Icons.Rounded.CalendarMonth, "תאריך", fmtDate(date)) { dialog = "date" }
+            FormRow(Icons.Rounded.Schedule, "שעה", fmtTime(time)) { dialog = "time" }
 
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Payments, null, tint = AuraColors.GreenDark, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.Payments, null, tint = AuraColors.GreenDark, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(12.dp))
                     AuraTextField(
                         value = priceText,
@@ -175,7 +178,7 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             }
 
             Box {
-                FormRow(Icons.Outlined.Person, "משלם", store.payerName(payerId)) { payerMenu = true }
+                FormRow(Icons.Rounded.Person, "משלם", store.payerName(payerId)) { payerMenu = true }
                 DropdownMenu(expanded = payerMenu, onDismissRequest = { payerMenu = false }) {
                     store.payers.forEach { p ->
                         DropdownMenuItem(
@@ -188,7 +191,7 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
 
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Edit, null, tint = AuraColors.GreenDark, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.Edit, null, tint = AuraColors.GreenDark, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(12.dp))
                     AuraTextField(
                         value = notes,
@@ -201,10 +204,21 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
 
             ToggleRow(null, "שולם", paid) { paid = it }
             if (paid) {
-                FormRow(Icons.Outlined.CalendarMonth, "תאריך תשלום", fmtDate(paidDate)) { dialog = "paidDate" }
+                FormRow(Icons.Rounded.CalendarMonth, "תאריך תשלום", fmtDate(paidDate)) { dialog = "paidDate" }
+                Box {
+                    FormRow(Icons.Rounded.Person, "שולם ע״י", store.payerName(paidById ?: payerId)) { paidByMenu = true }
+                    DropdownMenu(expanded = paidByMenu, onDismissRequest = { paidByMenu = false }) {
+                        store.payers.forEach { p ->
+                            DropdownMenuItem(
+                                text = { Text(p.name) },
+                                onClick = { paidById = p.id; paidByMenu = false }
+                            )
+                        }
+                    }
+                }
             }
 
-            ToggleRow(Icons.Outlined.Notifications, "תזכורת", remindOn) { on ->
+            ToggleRow(Icons.Rounded.Notifications, "תזכורת", remindOn) { on ->
                 remindOn = on
                 if (on) {
                     if (remindBefore == null && !remindPay && !customOn) remindBefore = 1440
@@ -228,8 +242,8 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
                 ToggleRow(null, "תזכורת לסימון תשלום", remindPay) { remindPay = it }
                 ToggleRow(null, "תזכורת מותאמת אישית", customOn) { customOn = it }
                 if (customOn) {
-                    FormRow(Icons.Outlined.CalendarMonth, "תאריך התזכורת", fmtDate(customDate)) { dialog = "customDate" }
-                    FormRow(Icons.Outlined.Schedule, "שעת התזכורת", fmtTime(customTime)) { dialog = "customTime" }
+                    FormRow(Icons.Rounded.CalendarMonth, "תאריך התזכורת", fmtDate(customDate)) { dialog = "customDate" }
+                    FormRow(Icons.Rounded.Schedule, "שעת התזכורת", fmtTime(customTime)) { dialog = "customTime" }
                 }
             }
             Spacer(Modifier.size(4.dp))
@@ -293,7 +307,7 @@ private fun ToggleRow(icon: ImageVector?, label: String, checked: Boolean, onCha
 }
 
 @Composable
-private fun AuraTextField(
+fun AuraTextField(
     value: String,
     onChange: (String) -> Unit,
     label: String,
@@ -320,7 +334,7 @@ private fun AuraTextField(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DatePickDialog(initial: LocalDate, onDismiss: () -> Unit, onPick: (LocalDate) -> Unit) {
+fun DatePickDialog(initial: LocalDate, onDismiss: () -> Unit, onPick: (LocalDate) -> Unit) {
     val st = rememberDatePickerState(
         initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
     )

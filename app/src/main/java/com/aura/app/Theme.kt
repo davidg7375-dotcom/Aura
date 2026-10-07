@@ -15,23 +15,26 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 
 object AuraColors {
-    val Bg = Color(0xFFF1EFE7)
-    val BgBottom = Color(0xFFE5EADD)
-    val Card = Color(0xFFF8F6F0)
-    val Line = Color(0x14000000)
-    val Green = Color(0xFF5B7B5B)
-    val GreenDark = Color(0xFF445F46)
-    val Sage = Color(0xFFE3E9DA)
-    val Avatar = Color(0xFFE9E1D3)
-    val Ink = Color(0xFF2C312B)
-    val Muted = Color(0xFF8A8F86)
-    val PaidBg = Color(0xFFDCEBD6)
-    val PaidFg = Color(0xFF4C7A4C)
-    val DueBg = Color(0xFFF7DDD9)
-    val DueFg = Color(0xFFC0463C)
-    val SoonBg = Color(0xFFFBEBC6)
-    val SoonFg = Color(0xFFB9811A)
-    val Debt = Color(0xFFC0392B)
+    // פלטה מתוך הלוגו: שקיעה חמה מעל אגם, ירוק מרווה כהה ועלה שקוף
+    val Bg = Color(0xFFFBF5E8)
+    val BgBottom = Color(0xFFE2EADF)
+    val Card = Color(0xFFFFFCF5)
+    val Line = Color(0x1F3F5747)
+    val Green = Color(0xFF4F6B58)
+    val GreenDark = Color(0xFF3F5747)
+    val Sage = Color(0xFFDCE6D9)
+    val Avatar = Color(0xFFF3E4C9)
+    val Peach = Color(0xFFEAD7B3)
+    val Sun = Color(0xFFF2C98F)
+    val Ink = Color(0xFF2F3B33)
+    val Muted = Color(0xFF7C897E)
+    val PaidBg = Color(0xFFDCEBDD)
+    val PaidFg = Color(0xFF3F7A4E)
+    val DueBg = Color(0xFFF6DDD2)
+    val DueFg = Color(0xFFB5533C)
+    val SoonBg = Color(0xFFF8E6C2)
+    val SoonFg = Color(0xFFA9742A)
+    val Debt = Color(0xFFB5533C)
 }
 
 @Composable

@@ -83,7 +83,7 @@ class ReminderReceiver : BroadcastReceiver() {
         )
         val n = NotificationCompat.Builder(context, Reminders.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_leaf)
-            .setContentTitle("AURA")
+            .setContentTitle("BREATHE")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)

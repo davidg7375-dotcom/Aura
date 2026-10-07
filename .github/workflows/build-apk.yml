@@ -1,4 +1,4 @@
-name: Build AURA APK
+name: Build Breathe APK
 
 on:
   push:
@@ -34,11 +34,11 @@ jobs:
           exit $code
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk AURA-release.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Breathe-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AURA-release
-          path: AURA-release.apk
+          name: Breathe-release
+          path: Breathe-release.apk
           if-no-files-found: error

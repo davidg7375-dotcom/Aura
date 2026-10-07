@@ -1,6 +1,7 @@
 package com.aura.app
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,17 +20,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Receipt
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -44,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,22 +63,20 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AuraLogo(modifier: Modifier = Modifier, size: Int = 34) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Column(modifier) {
-            Text(
-                text = "AURA",
-                fontSize = size.sp,
-                fontWeight = FontWeight.ExtraLight,
-                fontFamily = FontFamily.SansSerif,
-                letterSpacing = (size / 5).sp,
-                color = AuraColors.GreenDark
+        Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(R.drawable.breathe_logo),
+                contentDescription = "BREATHE",
+                modifier = Modifier.size((size * 1.35f).dp).clip(RoundedCornerShape((size * 0.35f).dp))
             )
+            Spacer(Modifier.width((size * 0.35f).dp))
             Text(
-                text = "space to breathe",
-                fontSize = (size / 3).sp,
+                text = "BREATHE",
+                fontSize = (size * 0.78f).sp,
                 fontWeight = FontWeight.Light,
                 fontFamily = FontFamily.SansSerif,
-                letterSpacing = (size / 8).sp,
-                color = AuraColors.Muted
+                letterSpacing = (size / 7).sp,
+                color = AuraColors.GreenDark
             )
         }
     }
@@ -125,7 +129,7 @@ fun Avatar(modifier: Modifier = Modifier, size: Dp = 48.dp) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            Icons.Outlined.Person,
+            Icons.Rounded.Person,
             contentDescription = null,
             tint = AuraColors.GreenDark,
             modifier = Modifier.size(size / 2)
@@ -155,8 +159,8 @@ fun StatusChip(status: PayStatus, modifier: Modifier = Modifier) {
     ) {
         Text(label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         when (status) {
-            PayStatus.Paid -> Icon(Icons.Filled.Check, null, tint = fg, modifier = Modifier.size(15.dp))
-            PayStatus.Due -> Icon(Icons.Filled.Error, null, tint = fg, modifier = Modifier.size(15.dp))
+            PayStatus.Paid -> Icon(Icons.Rounded.Check, null, tint = fg, modifier = Modifier.size(15.dp))
+            PayStatus.Due -> Icon(Icons.Rounded.Error, null, tint = fg, modifier = Modifier.size(15.dp))
             PayStatus.Soon -> Box(Modifier.size(8.dp).clip(CircleShape).background(fg))
         }
     }
@@ -174,7 +178,7 @@ fun statusColor(status: PayStatus): Color = when (status) {
 fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Modifier = Modifier) {
     AuraCard(modifier.fillMaxWidth(), onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBadge(Icons.Outlined.CalendarMonth, size = 46.dp)
+            IconBadge(Icons.Rounded.CalendarMonth, size = 46.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(fmtDate(s.date), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
@@ -188,6 +192,13 @@ fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Mod
                     Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                     Text("  ·  ", fontSize = 14.sp, color = AuraColors.Muted)
                     Text("משלם: ${store.payerName(s.payerId)}", fontSize = 14.sp, color = AuraColors.Muted)
+                }
+                if (s.paid && s.effectivePaidBy != s.payerId) {
+                    Text(
+                        "שולם ע״י ${store.payerName(s.effectivePaidBy)}",
+                        fontSize = 13.sp,
+                        color = AuraColors.SoonFg
+                    )
                 }
             }
             StatusChip(store.statusOf(s))
@@ -212,7 +223,7 @@ fun ScreenHeader(
     ) {
         if (onBack != null) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "חזרה", tint = AuraColors.Ink)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "חזרה", tint = AuraColors.Ink)
             }
         } else {
             Spacer(Modifier.width(8.dp))
@@ -290,10 +301,10 @@ fun BottomBar(nav: Nav) {
                 .height(72.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavItem("בית", root == Route.Home, Icons.Filled.Home, Icons.Outlined.Home, Modifier.weight(1f)) {
+            NavItem("בית", root == Route.Home, Icons.Rounded.Spa, Icons.Rounded.Spa, Modifier.weight(1f)) {
                 nav.tab(Route.Home)
             }
-            NavItem("פגישות", root == Route.Sessions, Icons.Outlined.CalendarMonth, Icons.Outlined.CalendarMonth, Modifier.weight(1f)) {
+            NavItem("פגישות", root == Route.Sessions, Icons.Rounded.Event, Icons.Rounded.Event, Modifier.weight(1f)) {
                 nav.tab(Route.Sessions)
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -305,13 +316,13 @@ fun BottomBar(nav: Nav) {
                         .clickable { nav.go(Route.Form()) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Add, "הוספת פגישה", tint = Color.White, modifier = Modifier.size(30.dp))
+                    Icon(Icons.Rounded.Add, "הוספת פגישה", tint = Color.White, modifier = Modifier.size(30.dp))
                 }
             }
-            NavItem("חובות", root == Route.Debts, Icons.Filled.Receipt, Icons.Outlined.Receipt, Modifier.weight(1f)) {
+            NavItem("חובות", root == Route.Debts, Icons.Rounded.AccountBalanceWallet, Icons.Rounded.AccountBalanceWallet, Modifier.weight(1f)) {
                 nav.tab(Route.Debts)
             }
-            NavItem("משלמים", root == Route.Payers, Icons.Filled.Person, Icons.Outlined.Person, Modifier.weight(1f)) {
+            NavItem("משלמים", root == Route.Payers, Icons.Rounded.Group, Icons.Rounded.Group, Modifier.weight(1f)) {
                 nav.tab(Route.Payers)
             }
         }

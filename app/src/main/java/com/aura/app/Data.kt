@@ -53,17 +53,38 @@ data class Session(
     val payerId: String,
     val paid: Boolean = false,
     val paidDate: LocalDate? = null,
+    val paidById: String? = null,
     val notes: String = "",
     val remindBeforeMin: Int? = null,
     val remindPay: Boolean = false,
     val customRemindAt: Long? = null
 ) {
     val dateTime: LocalDateTime get() = LocalDateTime.of(date, time)
+
+    /** מי שילם בפועל. אם לא נקבע במפורש – המשלם של הפגישה. */
+    val effectivePaidBy: String get() = paidById ?: payerId
 }
+
+/** חוב בין שני משלמים: [debtorId] חייב ל־[creditorId] על הפגישות ב־[sessions]. */
+data class CrossDebt(
+    val debtorId: String,
+    val creditorId: String,
+    val net: Int,
+    val sessions: List<Session>,
+    val offsetting: Int
+)
 
 enum class PayStatus { Paid, Due, Soon }
 
-data class PayerStats(val total: Int, val paid: Int, val due: Int, val soon: Int, val debt: Int)
+data class PayerStats(
+    val total: Int,
+    val paid: Int,
+    val due: Int,
+    val soon: Int,
+    val debt: Int,
+    val owes: Int = 0,
+    val owed: Int = 0
+)
 
 fun defaultPayers(): List<Payer> = listOf(
     Payer("p_parents", "הורים"),
@@ -100,6 +121,7 @@ object Repo {
                     payerId = j.getString("payerId"),
                     paid = j.optBoolean("paid", false),
                     paidDate = if (j.isNull("paidDate")) null else LocalDate.parse(j.getString("paidDate")),
+                    paidById = if (!j.has("paidById") || j.isNull("paidById")) null else j.getString("paidById"),
                     notes = j.optString("notes", ""),
                     remindBeforeMin = if (j.isNull("remindBeforeMin")) null else j.getInt("remindBeforeMin"),
                     remindPay = j.optBoolean("remindPay", false),
@@ -129,6 +151,7 @@ object Repo {
             j.put("payerId", x.payerId)
             j.put("paid", x.paid)
             j.put("paidDate", x.paidDate?.toString() ?: JSONObject.NULL)
+            j.put("paidById", x.paidById ?: JSONObject.NULL)
             j.put("notes", x.notes)
             j.put("remindBeforeMin", x.remindBeforeMin ?: JSONObject.NULL)
             j.put("remindPay", x.remindPay)
@@ -190,9 +213,23 @@ class AuraStore(private val app: Context) {
         Reminders.cancel(app, id)
     }
 
-    fun setPaid(id: String, paid: Boolean, date: LocalDate = LocalDate.now()) {
+    fun setPaid(id: String, paid: Boolean, date: LocalDate = LocalDate.now(), paidById: String? = null) {
         val s = session(id) ?: return
-        upsertSession(s.copy(paid = paid, paidDate = if (paid) date else null))
+        upsertSession(
+            s.copy(
+                paid = paid,
+                paidDate = if (paid) date else null,
+                paidById = if (paid) paidById else null
+            )
+        )
+    }
+
+    /** הוספת כמה פגישות בבת אחת (פגישות קודמות). */
+    fun addSessions(list: List<Session>) {
+        if (list.isEmpty()) return
+        sessions = sessions + list
+        persist()
+        list.forEach { Reminders.schedule(app, it, payerName(it.payerId)) }
     }
 
     fun changePayer(id: String, payerId: String) {
@@ -218,7 +255,7 @@ class AuraStore(private val app: Context) {
 
     /** מחיקה אפשרית רק למשלם ללא פגישות. */
     fun deletePayer(id: String): Boolean {
-        if (sessions.any { it.payerId == id }) return false
+        if (sessions.any { it.payerId == id || it.paidById == id }) return false
         payers = payers.filter { it.id != id }
         persist()
         return true
@@ -272,12 +309,45 @@ class AuraStore(private val app: Context) {
         val now = LocalDateTime.now()
         val mine = sessions.filter { it.payerId == payerId }
         val due = mine.filter { isDue(it, now) }
+        val cross = crossDebts()
         return PayerStats(
             total = mine.size,
             paid = mine.count { it.paid },
             due = due.size,
             soon = mine.count { !it.paid && !isDue(it, now) },
-            debt = due.sumOf { it.price }
+            debt = due.sumOf { it.price },
+            owes = cross.filter { it.debtorId == payerId }.sumOf { it.net },
+            owed = cross.filter { it.creditorId == payerId }.sumOf { it.net }
         )
+    }
+
+    /**
+     * התחשבנות בין משלמים: פגישה ששולמה ע"י מישהו אחר מהמשלם שלה.
+     * המשלם של הפגישה חייב למי ששילם בפועל. חובות בשני הכיוונים מקוזזים.
+     */
+    fun crossDebts(): List<CrossDebt> {
+        val grouped = sessions
+            .filter { it.paid && it.effectivePaidBy != it.payerId }
+            .groupBy { it.payerId to it.effectivePaidBy }
+        val result = mutableListOf<CrossDebt>()
+        val seen = mutableSetOf<Pair<String, String>>()
+        for ((key, list) in grouped) {
+            if (key in seen) continue
+            val reverseKey = key.second to key.first
+            seen.add(key)
+            seen.add(reverseKey)
+            val reverse = grouped[reverseKey].orEmpty()
+            val forward = list.sumOf { it.price }
+            val back = reverse.sumOf { it.price }
+            when {
+                forward > back -> result.add(
+                    CrossDebt(key.first, key.second, forward - back, list.sortedByDescending { it.dateTime }, back)
+                )
+                back > forward -> result.add(
+                    CrossDebt(reverseKey.first, reverseKey.second, back - forward, reverse.sortedByDescending { it.dateTime }, forward)
+                )
+            }
+        }
+        return result.sortedByDescending { it.net }
     }
 }

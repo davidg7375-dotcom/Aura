@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AURA"
+rootProject.name = "Breathe"
 include(":app")

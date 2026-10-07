@@ -22,10 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -74,7 +75,7 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
             AuraLogo(size = 34)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { nav.go(Route.Settings) }) {
-                Icon(Icons.Outlined.Settings, "הגדרות", tint = AuraColors.Ink)
+                Icon(Icons.Rounded.Settings, "הגדרות", tint = AuraColors.Ink)
             }
         }
 
@@ -96,7 +97,7 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
                         Text(fmtMoney(next.price), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                         Text("משלם: ${store.payerName(next.payerId)}", fontSize = 14.sp, color = AuraColors.Muted)
                     }
-                    IconBadge(Icons.Outlined.CalendarMonth, size = 58.dp, onClick = { nav.go(Route.Calendar) })
+                    IconBadge(Icons.Rounded.CalendarMonth, size = 58.dp, onClick = { nav.go(Route.Calendar) })
                 }
             } else {
                 Text("הפגישה הבאה", fontSize = 14.sp, color = AuraColors.Muted)
@@ -195,13 +196,13 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
         if (fixedPayerId != null) {
             ScreenHeader(store.payerName(fixedPayerId), onBack = { nav.back() }) {
                 IconButton(onClick = { editPayer = true }) {
-                    Icon(Icons.Filled.Edit, "עריכת משלם", tint = AuraColors.Ink)
+                    Icon(Icons.Rounded.Edit, "עריכת משלם", tint = AuraColors.Ink)
                 }
             }
         } else {
             ScreenHeader("פגישות") {
                 IconButton(onClick = { nav.go(Route.Calendar) }) {
-                    Icon(Icons.Outlined.CalendarMonth, "לוח שנה", tint = AuraColors.Ink)
+                    Icon(Icons.Rounded.CalendarMonth, "לוח שנה", tint = AuraColors.Ink)
                 }
             }
         }
@@ -222,7 +223,7 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
                         label = payerFilter?.let { store.payerName(it) } ?: "לפי משלם",
                         selected = payerFilter != null,
                         onClick = { menuOpen = true },
-                        trailing = Icons.Filled.KeyboardArrowDown
+                        trailing = Icons.Rounded.KeyboardArrowDown
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
@@ -248,6 +249,20 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
                 item {
                     val st = store.statsOf(fixedPayerId)
                     PayerSummaryCard(st)
+                }
+            }
+            if (fixedPayerId == null) {
+                item {
+                    AuraCard(Modifier.fillMaxWidth(), onClick = { nav.go(Route.Bulk) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Rounded.History, size = 42.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("הוספת פגישות קודמות", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                                Text("כמה פגישות כבר היו ומי שילם על כל אחת", fontSize = 13.sp, color = AuraColors.Muted)
+                            }
+                        }
+                    }
                 }
             }
             if (list.isEmpty()) {
@@ -300,6 +315,22 @@ private fun PayerSummaryCard(st: PayerStats) {
                 color = if (st.debt > 0) AuraColors.Debt else AuraColors.PaidFg
             )
         }
+        if (st.owes > 0) {
+            Spacer(Modifier.height(6.dp))
+            Row {
+                Text("חוב לאחרים (על פגישות ששילמו עבורו)", fontSize = 13.sp, color = AuraColors.Muted)
+                Spacer(Modifier.weight(1f))
+                Text(fmtMoney(st.owes), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Debt)
+            }
+        }
+        if (st.owed > 0) {
+            Spacer(Modifier.height(6.dp))
+            Row {
+                Text("לקבל מאחרים (שילם עבורם)", fontSize = 13.sp, color = AuraColors.Muted)
+                Spacer(Modifier.weight(1f))
+                Text(fmtMoney(st.owed), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.PaidFg)
+            }
+        }
     }
 }
 
@@ -315,6 +346,7 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
 
     var showPayer by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
+    var showPaidBy by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("פרטי פגישה", onBack = { nav.back() })
@@ -330,6 +362,9 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                 DetailRow("שעה", fmtTime(s.time))
                 DetailRow("מחיר", fmtMoney(s.price))
                 DetailRow("משלם", store.payerName(s.payerId))
+                if (s.paid && s.effectivePaidBy != s.payerId) {
+                    DetailRow("שולם ע״י", store.payerName(s.effectivePaidBy))
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -361,7 +396,7 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
             if (s.paid) {
                 SecondaryButton("סימון כלא שולם", { store.setPaid(s.id, false) })
             } else {
-                PrimaryButton("סימון כשולם", { store.setPaid(s.id, true) })
+                PrimaryButton("סימון כשולם", { showPaidBy = true })
             }
             SecondaryButton("שינוי משלם", { showPayer = true })
             SecondaryButton("עריכת פגישה", { nav.go(Route.Form(editId = s.id)) })
@@ -395,6 +430,45 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                                 showPayer = false
                             })
                             Text(p.name, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    if (showPaidBy) {
+        AlertDialog(
+            onDismissRequest = { showPaidBy = false },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showPaidBy = false }) { Text("ביטול") } },
+            title = { Text("מי שילם על הפגישה?") },
+            text = {
+                Column {
+                    Text(
+                        "אם שילם מישהו אחר מהמשלם, החוב ינוהל ביניהם בהתחשבנות.",
+                        fontSize = 13.sp,
+                        color = AuraColors.Muted
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val ordered = store.payers.sortedByDescending { it.id == s.payerId }
+                    ordered.forEach { p ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                .clickable {
+                                    store.setPaid(s.id, true, paidById = if (p.id == s.payerId) null else p.id)
+                                    showPaidBy = false
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = p.id == s.payerId, onClick = {
+                                store.setPaid(s.id, true, paidById = if (p.id == s.payerId) null else p.id)
+                                showPaidBy = false
+                            })
+                            Text(if (p.id == s.payerId) "${p.name} (המשלם)" else p.name, fontSize = 16.sp)
                         }
                     }
                 }
@@ -445,7 +519,7 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 fun PayerEditDialog(store: AuraStore, payerId: String, onDismiss: () -> Unit, onDeleted: () -> Unit) {
     var name by remember { mutableStateOf(store.payerName(payerId)) }
-    val hasSessions = store.sessions.any { it.payerId == payerId }
+    val hasSessions = store.sessions.any { it.payerId == payerId || it.paidById == payerId }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("עריכת משלם") },

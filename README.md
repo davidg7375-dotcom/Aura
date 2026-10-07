@@ -1,4 +1,4 @@
-# AURA — space to breathe
+# Breathe — space to breathe
 
 אפליקציית Android אישית לניהול פגישות עם מטפל ולמעקב אחר תשלומים.
 ממשק בעברית מלאה וב־RTL, נתונים נשמרים מקומית במכשיר.
@@ -7,8 +7,8 @@
 
 ### אפשרות 1 — GitHub (בלי להתקין כלום)
 1. צרו ב־GitHub repository **פרטי** חדש והעלו אליו את כל תוכן התיקייה הזו (כולל `.github` ו־`keystore`).
-2. היכנסו ללשונית **Actions** ← **Build AURA APK** ← **Run workflow** (או פשוט בצעו push).
-3. בסיום הריצה, תחת **Artifacts** הורידו `AURA-release-apk` — בתוכו `app-release.apk`.
+2. היכנסו ללשונית **Actions** ← **Build Breathe APK** ← **Run workflow** (או פשוט בצעו push).
+3. בסיום הריצה, תחת **Artifacts** הורידו `Breathe-release-apk` — בתוכו `app-release.apk`.
 4. העבירו את הקובץ לטלפון ופתחו אותו (יש לאשר התקנה ממקור לא מוכר).
 
 ### אפשרות 2 — Android Studio
