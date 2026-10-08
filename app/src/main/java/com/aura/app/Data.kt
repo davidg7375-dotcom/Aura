@@ -31,18 +31,15 @@ fun fmtDayMonth(d: LocalDate): String = d.format(fDayMonth)
 fun fmtWeekday(d: LocalDate): String = d.format(fWeekday)
 fun fmtMonthYear(m: YearMonth): String = m.format(fMonthYear)
 fun fmtTime(t: LocalTime): String = t.format(fTime)
-private val fNumeric = DateTimeFormatter.ofPattern("dd/MM", HE)
-private val fNumericYear = DateTimeFormatter.ofPattern("dd/MM/yy", HE)
+private val fNumeric = DateTimeFormatter.ofPattern("d/M", HE)
+private val fNumericYear = DateTimeFormatter.ofPattern("d/M/yy", HE)
 
 /** "3 בספטמבר", ועם שנה אם זו לא השנה הנוכחית. */
 fun fmtDateShort(d: LocalDate): String = if (d.year == LocalDate.now().year) fmtDayMonth(d) else fmtDate(d)
 
-/** "01/09", ועם שנה אם זו לא השנה הנוכחית. */
+/** "3/9", ועם שנה אם זו לא השנה הנוכחית. */
 fun fmtNumeric(d: LocalDate): String =
     if (d.year == LocalDate.now().year) d.format(fNumeric) else d.format(fNumericYear)
-
-/** שדה אחד בפגישה: מי שילם. לפני התשלום – מי ישלם. */
-fun payerRole(paid: Boolean): String = if (paid) "שולם על ידי" else "ישולם על ידי"
 
 fun unpaidCountText(n: Int): String = when (n) {
     1 -> "1 פגישה שלא שולמה"
@@ -89,16 +86,20 @@ object Repo {
             val sessions = (0 until ss.length()).map { i ->
                 val j = ss.getJSONObject(i)
                 val paid = j.optBoolean("paid", false)
-                // מיגרציה: בגרסה קודמת היה גם "מי שילם בפועל" נפרד. עכשיו יש שדה אחד – אם שולם, זה מי ששילם.
-                val oldPaidBy = if (!j.has("paidById") || j.isNull("paidById")) null else j.getString("paidById")
+                fun str(key: String): String? = if (!j.has(key) || j.isNull(key)) null else j.getString(key)
+                // מיגרציה מגרסאות קודמות (שדה payerId): אם שולם – זה מי ששילם; אם לא – שיוך החוב.
+                val legacy = str("payerId")
+                val paidBy = if (paid) (str("paidById") ?: legacy) else null
+                val debtor = if (paid) null else (str("debtorId") ?: legacy)
                 Session(
                     id = j.getString("id"),
                     date = LocalDate.parse(j.getString("date")),
                     time = LocalTime.parse(j.getString("time")),
                     price = j.getInt("price"),
-                    payerId = if (paid && oldPaidBy != null) oldPaidBy else j.getString("payerId"),
                     paid = paid,
                     paidDate = if (j.isNull("paidDate")) null else LocalDate.parse(j.getString("paidDate")),
+                    paidById = paidBy,
+                    debtorId = debtor,
                     notes = j.optString("notes", ""),
                     remindBeforeMin = if (j.isNull("remindBeforeMin")) null else j.getInt("remindBeforeMin"),
                     remindPay = j.optBoolean("remindPay", false),
@@ -125,9 +126,10 @@ object Repo {
             j.put("date", x.date.toString())
             j.put("time", x.time.toString())
             j.put("price", x.price)
-            j.put("payerId", x.payerId)
             j.put("paid", x.paid)
             j.put("paidDate", x.paidDate?.toString() ?: JSONObject.NULL)
+            j.put("paidById", x.paidById ?: JSONObject.NULL)
+            j.put("debtorId", x.debtorId ?: JSONObject.NULL)
             j.put("notes", x.notes)
             j.put("remindBeforeMin", x.remindBeforeMin ?: JSONObject.NULL)
             j.put("remindPay", x.remindPay)
@@ -169,9 +171,10 @@ class AuraStore(private val app: Context) {
 
     fun session(id: String): Session? = sessions.firstOrNull { it.id == id }
 
-    fun lastPayerId(): String {
-        val last = sessions.maxByOrNull { it.dateTime }
-        return last?.payerId ?: payers.firstOrNull()?.id ?: ""
+    /** האדם שהכי לאחרונה שילם – ברירת מחדל נוחה בבחירת "שולם על ידי". */
+    fun lastPaidById(): String {
+        val last = sessions.filter { it.paid && it.paidById != null }.maxByOrNull { it.dateTime }
+        return last?.paidById ?: payers.firstOrNull()?.id ?: ""
     }
 
     // --- פגישות ---
@@ -180,7 +183,7 @@ class AuraStore(private val app: Context) {
         val exists = sessions.any { it.id == s.id }
         sessions = if (exists) sessions.map { if (it.id == s.id) s else it } else sessions + s
         persist()
-        Reminders.schedule(app, s, payerName(s.payerId))
+        Reminders.schedule(app, s)
     }
 
     fun deleteSession(id: String) {
@@ -189,16 +192,29 @@ class AuraStore(private val app: Context) {
         Reminders.cancel(app, id)
     }
 
-    /** סימון פגישה כשולמה / לא שולמה. אם [byId] ניתן – זה מי ששילם בפועל. */
-    fun setPaid(id: String, paid: Boolean, date: LocalDate = LocalDate.now(), byId: String? = null) {
+    /** סימון פגישה כשולמה על ידי אדם מסוים. */
+    fun markPaid(id: String, byId: String, date: LocalDate = LocalDate.now()) = markPaidMany(listOf(id), byId, date)
+
+    /** החזרת פגישה ל"לא שולם" (נמחק "שולם על ידי"). */
+    fun markUnpaid(id: String) {
+        val updated = Ledger.markUnpaid(sessions, id)
+        sessions = updated
+        persist()
+        updated.firstOrNull { it.id == id }?.let { Reminders.schedule(app, it) }
+    }
+
+    /** שינוי מי ששילם / תאריך התשלום בפגישה ששולמה. */
+    fun updatePaidInfo(id: String, byId: String, date: LocalDate) {
         val s = session(id) ?: return
-        upsertSession(
-            s.copy(
-                paid = paid,
-                paidDate = if (paid) date else null,
-                payerId = if (paid && byId != null) byId else s.payerId
-            )
-        )
+        if (!s.paid) return
+        upsertSession(s.copy(paidById = byId, paidDate = date))
+    }
+
+    /** שיוך חוב לאדם בניהול החובות (null = הסרת שיוך). */
+    fun assignDebt(ids: Collection<String>, personId: String?) {
+        if (ids.isEmpty()) return
+        sessions = Ledger.assignDebt(sessions, ids.toSet(), personId)
+        persist()
     }
 
     /** אדם אחד משלם בפועל על כמה פגישות: כל אחת נשארת פגישה נפרדת עם אותו מחיר. */
@@ -208,7 +224,7 @@ class AuraStore(private val app: Context) {
         val updated = Ledger.markPaid(sessions, idSet, byId, date)
         sessions = updated
         persist()
-        updated.filter { it.id in idSet }.forEach { Reminders.schedule(app, it, payerName(it.payerId)) }
+        updated.filter { it.id in idSet }.forEach { Reminders.schedule(app, it) }
     }
 
     /** הוספת כמה פגישות בבת אחת (פגישות קודמות). */
@@ -216,12 +232,7 @@ class AuraStore(private val app: Context) {
         if (list.isEmpty()) return
         sessions = sessions + list
         persist()
-        list.forEach { Reminders.schedule(app, it, payerName(it.payerId)) }
-    }
-
-    fun changePayer(id: String, payerId: String) {
-        val s = session(id) ?: return
-        upsertSession(s.copy(payerId = payerId))
+        list.forEach { Reminders.schedule(app, it) }
     }
 
     // --- משלמים ---
@@ -242,7 +253,7 @@ class AuraStore(private val app: Context) {
 
     /** מחיקה אפשרית רק למשלם ללא פגישות. */
     fun deletePayer(id: String): Boolean {
-        if (sessions.any { it.payerId == id }) return false
+        if (sessions.any { it.paidById == id || it.debtorId == id }) return false
         payers = payers.filter { it.id != id }
         persist()
         return true
@@ -259,9 +270,12 @@ class AuraStore(private val app: Context) {
 
     fun statusOf(s: Session): PayStatus = Ledger.status(s, LocalDateTime.now())
 
-    /** פגישות שכבר התקיימו ולא שולמו = חוב. */
-    fun dueSessions(payerId: String? = null): List<Session> =
-        Ledger.dueSessions(sessions, payerId, LocalDateTime.now())
+    /** כל הפגישות שלא שולמו (שכבר התקיימו) = חוב. */
+    fun dueSessions(): List<Session> = Ledger.dueSessions(sessions, LocalDateTime.now())
+
+    fun dueFor(personId: String): List<Session> = Ledger.dueFor(sessions, personId, LocalDateTime.now())
+
+    fun dueUnassigned(): List<Session> = Ledger.dueUnassigned(sessions, LocalDateTime.now())
 
     fun totalDebt(): Int = Ledger.totalDebt(sessions, LocalDateTime.now())
 

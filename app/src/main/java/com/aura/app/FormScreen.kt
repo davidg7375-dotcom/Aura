@@ -83,9 +83,10 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
     var date by remember { mutableStateOf(existing?.date ?: presetDate ?: LocalDate.now()) }
     var time by remember { mutableStateOf(existing?.time ?: LocalTime.of(18, 0)) }
     var priceText by remember { mutableStateOf((existing?.price ?: store.defaultPrice).toString()) }
-    var payerId by remember { mutableStateOf(existing?.payerId ?: store.lastPayerId()) }
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
-    var paid by remember { mutableStateOf(existing?.paid ?: false) }
+    // פגישה חדשה תמיד נוצרת כ"לא שולם". סימון תשלום ובחירת מי שילם נעשים בפרטי הפגישה.
+    val paid = existing?.paid ?: false
+    var paidBy by remember { mutableStateOf(existing?.paidById) }
     var paidDate by remember { mutableStateOf(existing?.paidDate ?: LocalDate.now()) }
 
     var remindOn by remember {
@@ -118,7 +119,7 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
     }
 
     val price = priceText.toIntOrNull() ?: 0
-    val canSave = price > 0 && store.payers.any { it.id == payerId }
+    val canSave = price > 0 && (!paid || paidBy != null)
 
     fun save() {
         val customAt: Long? = if (remindOn && customOn) {
@@ -129,9 +130,10 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             date = date,
             time = time,
             price = price,
-            payerId = payerId,
             paid = paid,
             paidDate = if (paid) paidDate else null,
+            paidById = if (paid) paidBy else null,
+            debtorId = if (paid) null else existing?.debtorId,
             notes = notes.trim(),
             remindBeforeMin = if (remindOn) remindBefore else null,
             remindPay = remindOn && remindPay,
@@ -174,18 +176,6 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
                 }
             }
 
-            Box {
-                FormRow(Icons.Rounded.Person, payerRole(paid), store.payerName(payerId)) { payerMenu = true }
-                DropdownMenu(expanded = payerMenu, onDismissRequest = { payerMenu = false }) {
-                    store.payers.forEach { p ->
-                        DropdownMenuItem(
-                            text = { Text(p.name) },
-                            onClick = { payerId = p.id; payerMenu = false }
-                        )
-                    }
-                }
-            }
-
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Edit, null, tint = AuraColors.GreenDark, modifier = Modifier.size(24.dp))
@@ -199,8 +189,26 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
                 }
             }
 
-            ToggleRow(null, "שולם", paid) { paid = it }
+            // רק סטטוס. "שולם על ידי" מופיע רק אחרי שהפגישה סומנה כשולמה.
+            AuraCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("סטטוס תשלום", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = AuraColors.Ink)
+                    Spacer(Modifier.weight(1f))
+                    StatusChip(if (paid) PayStatus.Paid else PayStatus.Due)
+                }
+            }
             if (paid) {
+                Box {
+                    FormRow(Icons.Rounded.Person, "שולם על ידי", paidBy?.let { store.payerName(it) } ?: "בחירת אדם") { payerMenu = true }
+                    DropdownMenu(expanded = payerMenu, onDismissRequest = { payerMenu = false }) {
+                        store.payers.forEach { p ->
+                            DropdownMenuItem(
+                                text = { Text(p.name) },
+                                onClick = { paidBy = p.id; payerMenu = false }
+                            )
+                        }
+                    }
+                }
                 FormRow(Icons.Rounded.CalendarMonth, "תאריך תשלום", fmtDate(paidDate)) { dialog = "paidDate" }
             }
 

@@ -198,11 +198,10 @@ fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Mod
                     fontWeight = FontWeight.SemiBold,
                     color = AuraColors.Ink
                 )
-                val who = store.payerName(s.payerId)
                 val line = when (status) {
-                    PayStatus.Paid -> "שולם על ידי $who"
-                    PayStatus.Due -> "$who · לא שולם"
-                    PayStatus.Soon -> "$who · קרוב"
+                    PayStatus.Paid -> "שולם על ידי ${s.paidById?.let { store.payerName(it) } ?: "—"}"
+                    PayStatus.Due -> "לא שולם"
+                    PayStatus.Soon -> "קרוב · לא שולם"
                 }
                 Text(line, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = statusColor(status))
             }

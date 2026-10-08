@@ -8,14 +8,23 @@ import java.time.LocalTime
 
 data class Payer(val id: String, val name: String)
 
+/**
+ * פגישה = יחידת חיוב נפרדת. מתעדים רק:
+ *  1. האם שולמה ([paid]).
+ *  2. אם כן – מי בפועל שילם ([paidById]). פגישה שלא שולמה אינה מכילה "שולם על ידי".
+ *
+ * [debtorId] הוא שיוך חוב לצורך ניהול החובות בלבד (אופציונלי, רק לפגישה שלא שולמה).
+ * אין כאן מושג של "מי אמור לשלם".
+ */
 data class Session(
     val id: String,
     val date: LocalDate,
     val time: LocalTime,
     val price: Int,
-    val payerId: String,
     val paid: Boolean = false,
     val paidDate: LocalDate? = null,
+    val paidById: String? = null,
+    val debtorId: String? = null,
     val notes: String = "",
     val remindBeforeMin: Int? = null,
     val remindPay: Boolean = false,
@@ -26,12 +35,17 @@ data class Session(
 
 enum class PayStatus { Paid, Due, Soon }
 
-data class PayerStats(val total: Int, val paid: Int, val due: Int, val soon: Int, val debt: Int)
+/** סיכום לאדם: על כמה פגישות שילם, וחוב פתוח שמשויך אליו. */
+data class PayerStats(
+    val paidCount: Int,
+    val paidSum: Int,
+    val dueCount: Int,
+    val debt: Int
+)
 
 /**
  * כל חישובי התשלומים והחובות במקום אחד.
- * מודל: לכל פגישה יש סטטוס תשלום ואדם אחד ([Session.payerId]) –
- * אם שולמה, זה מי ששילם עליה; אם לא, זה האדם שהחוב רשום עליו.
+ * חוב = פגישה שכבר התקיימה ולא שולמה. אדם מקבל חוב רק אם הפגישה משויכת אליו במסך החובות.
  */
 object Ledger {
     fun isDue(s: Session, now: LocalDateTime): Boolean = !s.paid && !s.dateTime.isAfter(now)
@@ -42,30 +56,45 @@ object Ledger {
         else -> PayStatus.Soon
     }
 
-    /** פגישות שכבר התקיימו ולא שולמו, מהחדשה לישנה. */
-    fun dueSessions(sessions: List<Session>, payerId: String?, now: LocalDateTime): List<Session> =
-        sessions
-            .filter { isDue(it, now) && (payerId == null || it.payerId == payerId) }
-            .sortedByDescending { it.dateTime }
+    /** כל הפגישות שלא שולמו (שכבר התקיימו), מהחדשה לישנה. */
+    fun dueSessions(sessions: List<Session>, now: LocalDateTime): List<Session> =
+        sessions.filter { isDue(it, now) }.sortedByDescending { it.dateTime }
 
-    fun debtOf(sessions: List<Session>, payerId: String, now: LocalDateTime): Int =
-        dueSessions(sessions, payerId, now).sumOf { it.price }
+    /** חובות המשויכים לאדם מסוים. */
+    fun dueFor(sessions: List<Session>, personId: String, now: LocalDateTime): List<Session> =
+        dueSessions(sessions, now).filter { it.debtorId == personId }
+
+    /** חובות שעדיין לא שויכו לאף אדם. */
+    fun dueUnassigned(sessions: List<Session>, now: LocalDateTime): List<Session> =
+        dueSessions(sessions, now).filter { it.debtorId == null }
+
+    fun debtOf(sessions: List<Session>, personId: String, now: LocalDateTime): Int =
+        dueFor(sessions, personId, now).sumOf { it.price }
 
     fun totalDebt(sessions: List<Session>, now: LocalDateTime): Int =
-        dueSessions(sessions, null, now).sumOf { it.price }
+        dueSessions(sessions, now).sumOf { it.price }
 
     /** סימון כמה פגישות כשולמו על ידי אדם אחד. כל פגישה נשארת נפרדת עם המחיר שלה. */
     fun markPaid(sessions: List<Session>, ids: Set<String>, byId: String, date: LocalDate): List<Session> =
-        sessions.map { if (it.id in ids) it.copy(paid = true, paidDate = date, payerId = byId) else it }
+        sessions.map {
+            if (it.id in ids) it.copy(paid = true, paidDate = date, paidById = byId, debtorId = null) else it
+        }
 
-    fun stats(sessions: List<Session>, payerId: String, now: LocalDateTime): PayerStats {
-        val mine = sessions.filter { it.payerId == payerId }
-        val due = mine.filter { isDue(it, now) }
+    /** החזרת פגישה למצב "לא שולם": אין יותר "שולם על ידי". */
+    fun markUnpaid(sessions: List<Session>, id: String): List<Session> =
+        sessions.map { if (it.id == id) it.copy(paid = false, paidDate = null, paidById = null) else it }
+
+    /** שיוך חוב לאדם (או הסרת שיוך עם null). משפיע רק על פגישות שלא שולמו. */
+    fun assignDebt(sessions: List<Session>, ids: Set<String>, personId: String?): List<Session> =
+        sessions.map { if (it.id in ids && !it.paid) it.copy(debtorId = personId) else it }
+
+    fun stats(sessions: List<Session>, personId: String, now: LocalDateTime): PayerStats {
+        val paidBy = sessions.filter { it.paid && it.paidById == personId }
+        val due = dueFor(sessions, personId, now)
         return PayerStats(
-            total = mine.size,
-            paid = mine.count { it.paid },
-            due = due.size,
-            soon = mine.count { !it.paid && !isDue(it, now) },
+            paidCount = paidBy.size,
+            paidSum = paidBy.sumOf { it.price },
+            dueCount = due.size,
             debt = due.sumOf { it.price }
         )
     }

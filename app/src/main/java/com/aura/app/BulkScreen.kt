@@ -49,11 +49,11 @@ private data class BulkRow(
     val key: String,
     val date: LocalDate,
     val price: String,
-    val payerId: String,
-    val paid: Boolean
+    val paid: Boolean,
+    val paidById: String?
 )
 
-/** הוספת כמה פגישות קודמות בבת אחת: לכל פגישה תאריך, מחיר, משלם, וסטטוס תשלום (ומי שילם בפועל). */
+/** הוספת כמה פגישות קודמות בבת אחת: לכל פגישה תאריך, מחיר, וסטטוס תשלום (ואם שולם – מי שילם). */
 @Composable
 fun BulkScreen(store: AuraStore, nav: Nav) {
     val rows = remember {
@@ -62,14 +62,14 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                 key = UUID.randomUUID().toString(),
                 date = LocalDate.now().minusDays(7),
                 price = store.defaultPrice.toString(),
-                payerId = store.lastPayerId(),
-                paid = true
+                paid = true,
+                paidById = store.lastPaidById().ifEmpty { null }
             )
         )
     }
     var pickIndex by remember { mutableStateOf<Int?>(null) }
 
-    val canSave = rows.isNotEmpty() && rows.all { (it.price.toIntOrNull() ?: 0) > 0 }
+    val canSave = rows.isNotEmpty() && rows.all { (it.price.toIntOrNull() ?: 0) > 0 && (!it.paid || it.paidById != null) }
 
     fun save() {
         val list = rows.map { r ->
@@ -78,9 +78,9 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                 date = r.date,
                 time = LocalTime.of(18, 0),
                 price = r.price.toInt(),
-                payerId = r.payerId,
                 paid = r.paid,
-                paidDate = if (r.paid) r.date else null
+                paidDate = if (r.paid) r.date else null,
+                paidById = if (r.paid) r.paidById else null
             )
         }
         store.addSessions(list)
@@ -98,7 +98,7 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "הוסיפו את הפגישות שכבר היו. לכל פגישה בוחרים אם שולמה, ומי שילם עליה. השעה נקבעת ל־18:00 וניתן לשנות אותה בעריכת הפגישה.",
+                "הוסיפו את הפגישות שכבר היו. לכל פגישה מסמנים אם שולמה, ואם כן – מי שילם. השעה נקבעת ל־18:00 וניתן לשנות אותה בעריכת הפגישה.",
                 fontSize = 14.sp,
                 color = AuraColors.Muted
             )
@@ -136,13 +136,16 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                             keyboardType = KeyboardType.Number
                         )
 
-                        Spacer(Modifier.height(8.dp))
-                        PayerPicker(payerRole(r.paid), store, r.payerId) { rows[i] = r.copy(payerId = it) }
-
                         Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Pill("שולם", r.paid, { rows[i] = r.copy(paid = true) })
-                            Pill("לא שולם", !r.paid, { rows[i] = r.copy(paid = false) })
+                            Pill("שולם", r.paid, { rows[i] = r.copy(paid = true, paidById = r.paidById ?: store.lastPaidById().ifEmpty { null }) })
+                            Pill("לא שולם", !r.paid, { rows[i] = r.copy(paid = false, paidById = null) })
+                        }
+
+                        // "שולם על ידי" מופיע רק כשהפגישה שולמה
+                        if (r.paid) {
+                            Spacer(Modifier.height(10.dp))
+                            PayerPicker("שולם על ידי", store, r.paidById) { rows[i] = r.copy(paidById = it) }
                         }
 
                     }
@@ -179,7 +182,7 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
 }
 
 @Composable
-private fun PayerPicker(label: String, store: AuraStore, selectedId: String, onPick: (String) -> Unit) {
+private fun PayerPicker(label: String, store: AuraStore, selectedId: String?, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
@@ -194,7 +197,7 @@ private fun PayerPicker(label: String, store: AuraStore, selectedId: String, onP
             Text(label, fontSize = 13.sp, color = AuraColors.Muted)
             Spacer(Modifier.width(10.dp))
             Text(
-                store.payerName(selectedId),
+                selectedId?.let { store.payerName(it) } ?: "בחירת אדם",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 color = AuraColors.Ink,

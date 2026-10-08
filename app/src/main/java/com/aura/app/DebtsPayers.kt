@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -57,23 +58,103 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val selected = remember { mutableStateListOf<String>() }
     var showPay by remember { mutableStateOf(false) }
+    var showAssign by remember { mutableStateOf(false) }
 
     val groups = store.payers
-        .map { p -> p to store.dueSessions(p.id) }
+        .map { p -> p to store.dueFor(p.id) }
         .sortedWith(
             compareByDescending<Pair<Payer, List<Session>>> { g -> g.second.sumOf { it.price } }
                 .thenBy { it.first.name }
         )
+    val unassigned = store.dueUnassigned()
 
     // פגישה שכבר לא חוב (שולמה / נמחקה) יוצאת מהבחירה אוטומטית
-    val dueIds = groups.flatMap { g -> g.second.map { it.id } }.toSet()
+    val dueIds = store.dueSessions().map { it.id }.toSet()
     LaunchedEffect(dueIds) { selected.retainAll(dueIds) }
 
     val chosen = store.sessions.filter { it.id in selected }
     val chosenSum = chosen.sumOf { it.price }
 
+    @Composable
+    fun DebtCard(
+        key: String,
+        title: String,
+        list: List<Session>,
+        leading: @Composable () -> Unit,
+        hint: String? = null
+    ) {
+        val sum = list.sumOf { it.price }
+        val canOpen = list.isNotEmpty()
+        val open = canOpen && (expanded[key] ?: true)
+        AuraCard(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(if (canOpen) Modifier.clickable { expanded[key] = !open } else Modifier),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                leading()
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                    Text(
+                        unpaidCountText(list.size),
+                        fontSize = 13.sp,
+                        color = if (canOpen) AuraColors.DueFg else AuraColors.Muted
+                    )
+                }
+                Text(
+                    fmtMoney(sum),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (sum > 0) AuraColors.Debt else AuraColors.PaidFg
+                )
+                if (canOpen) {
+                    Icon(
+                        if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        null,
+                        tint = AuraColors.Muted
+                    )
+                }
+            }
+            if (open) {
+                if (hint != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(hint, fontSize = 12.sp, color = AuraColors.Muted)
+                }
+                val allSelected = list.all { it.id in selected }
+                TextButton(onClick = {
+                    if (allSelected) selected.removeAll(list.map { it.id })
+                    else list.forEach { if (it.id !in selected) selected.add(it.id) }
+                }) {
+                    Text(
+                        if (allSelected) "ביטול בחירה" else "בחירת כל הפגישות",
+                        fontSize = 13.sp,
+                        color = AuraColors.GreenDark
+                    )
+                }
+                list.forEachIndexed { i, s ->
+                    if (i > 0) HorizontalDivider(color = AuraColors.Line)
+                    DebtRow(
+                        s = s,
+                        checked = s.id in selected,
+                        onToggle = { if (s.id in selected) selected.remove(s.id) else selected.add(s.id) },
+                        onOpen = { nav.go(Route.Details(s.id)) }
+                    )
+                }
+                HorizontalDivider(color = AuraColors.Line)
+                Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 4.dp, end = 4.dp)) {
+                    Text("סה\"כ", fontSize = 15.sp, color = AuraColors.Muted)
+                    Spacer(Modifier.weight(1f))
+                    Text(fmtMoney(sum), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AuraColors.Debt)
+                }
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("חובות פתוחים")
+        ScreenHeader("חובות")
         Column(
             Modifier
                 .weight(1f)
@@ -99,84 +180,80 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                 }
             }
 
+            if (unassigned.isNotEmpty()) {
+                DebtCard(
+                    key = "unassigned",
+                    title = "לא משויך",
+                    list = unassigned,
+                    leading = { IconBadge(Icons.Rounded.Info, size = 44.dp) },
+                    hint = "בחרו פגישות ולחצו \"שיוך לאדם\" כדי לרשום עליהן חוב."
+                )
+            }
+
             groups.forEach { (payer, list) ->
-                val sum = list.sumOf { it.price }
-                val canOpen = list.isNotEmpty()
-                val open = canOpen && (expanded[payer.id] ?: true)
-                AuraCard(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .then(if (canOpen) Modifier.clickable { expanded[payer.id] = !open } else Modifier),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Avatar(size = 44.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(payer.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
-                            Text(
-                                unpaidCountText(list.size),
-                                fontSize = 13.sp,
-                                color = if (canOpen) AuraColors.DueFg else AuraColors.Muted
-                            )
-                        }
-                        Text(
-                            fmtMoney(sum),
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sum > 0) AuraColors.Debt else AuraColors.PaidFg
-                        )
-                        if (canOpen) {
-                            Icon(
-                                if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-                                null,
-                                tint = AuraColors.Muted
-                            )
-                        }
-                    }
-                    if (open) {
-                        Spacer(Modifier.height(4.dp))
-                        val allSelected = list.all { it.id in selected }
-                        TextButton(onClick = {
-                            if (allSelected) selected.removeAll(list.map { it.id })
-                            else list.forEach { if (it.id !in selected) selected.add(it.id) }
-                        }) {
-                            Text(
-                                if (allSelected) "ביטול בחירה" else "בחירת כל הפגישות",
-                                fontSize = 13.sp,
-                                color = AuraColors.GreenDark
-                            )
-                        }
-                        list.forEachIndexed { i, s ->
-                            if (i > 0) HorizontalDivider(color = AuraColors.Line)
-                            DebtRow(
-                                s = s,
-                                checked = s.id in selected,
-                                onToggle = { if (s.id in selected) selected.remove(s.id) else selected.add(s.id) },
-                                onOpen = { nav.go(Route.Details(s.id)) }
-                            )
-                        }
-                    }
-                }
+                DebtCard(
+                    key = payer.id,
+                    title = payer.name,
+                    list = list,
+                    leading = { Avatar(size = 44.dp) }
+                )
             }
             Spacer(Modifier.height(12.dp))
         }
 
         if (selected.isNotEmpty()) {
             Surface(color = AuraColors.Card, shadowElevation = 8.dp) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SecondaryButton("שיוך לאדם", { showAssign = true }, Modifier.weight(1f))
                     PrimaryButton(
-                        "סימון ${selected.size} פגישות כשולמו · ${fmtMoney(chosenSum)}",
-                        { showPay = true }
+                        "סימון כשולמו · ${fmtMoney(chosenSum)}",
+                        { showPay = true },
+                        Modifier.weight(1.4f)
                     )
                 }
             }
         }
     }
 
+    if (showAssign) {
+        AlertDialog(
+            onDismissRequest = { showAssign = false },
+            title = { Text("שיוך חוב לאדם") },
+            text = {
+                Column {
+                    Text(
+                        "${selected.size} פגישות · ${fmtMoney(chosenSum)}",
+                        fontSize = 13.sp,
+                        color = AuraColors.Muted
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    store.payers.forEach { p ->
+                        PersonOption(p.name, false) {
+                            store.assignDebt(selected.toList(), p.id)
+                            selected.clear()
+                            showAssign = false
+                        }
+                    }
+                    PersonOption("ללא שיוך", false) {
+                        store.assignDebt(selected.toList(), null)
+                        selected.clear()
+                        showAssign = false
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showAssign = false }) { Text("ביטול") } }
+        )
+    }
+
     if (showPay) {
-        val owners = chosen.map { it.payerId }.toSet()
+        val owners = chosen.map { it.debtorId }.toSet()
         var pickedId by remember(owners) { mutableStateOf(owners.singleOrNull()) }
         AlertDialog(
             onDismissRequest = { showPay = false },
@@ -190,17 +267,7 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                     )
                     Spacer(Modifier.height(8.dp))
                     store.payers.forEach { p ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { pickedId = p.id }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = pickedId == p.id, onClick = { pickedId = p.id })
-                            Text(p.name, fontSize = 16.sp)
-                        }
+                        PersonOption(p.name, pickedId == p.id) { pickedId = p.id }
                     }
                 }
             },
@@ -216,6 +283,21 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
             },
             dismissButton = { TextButton(onClick = { showPay = false }) { Text("ביטול") } }
         )
+    }
+}
+
+@Composable
+private fun PersonOption(name: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(name, fontSize = 16.sp)
     }
 }
 
@@ -245,9 +327,8 @@ private fun DebtRow(s: Session, checked: Boolean, onToggle: () -> Unit, onOpen: 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(fmtNumeric(s.date), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = AuraColors.Ink)
-            Text("  —  לא שולם", fontSize = 13.sp, color = AuraColors.DueFg)
-            Spacer(Modifier.weight(1f))
-            Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+            Text("  —  ", fontSize = 13.sp, color = AuraColors.Muted)
+            Text(fmtMoney(s.price), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
         }
     }
 }

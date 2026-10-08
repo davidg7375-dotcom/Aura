@@ -95,7 +95,6 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
                         Text(fmtWeekday(next.date), fontSize = 14.sp, color = AuraColors.Muted)
                         Spacer(Modifier.height(10.dp))
                         Text(fmtMoney(next.price), fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
-                        Text("${payerRole(next.paid)}: ${store.payerName(next.payerId)}", fontSize = 14.sp, color = AuraColors.Muted)
                     }
                     IconBadge(Icons.Rounded.CalendarMonth, size = 58.dp, onClick = { nav.go(Route.Calendar) })
                 }
@@ -181,10 +180,10 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
     var menuOpen by remember { mutableStateOf(false) }
     var editPayer by remember { mutableStateOf(false) }
 
-    val payerId = fixedPayerId ?: payerFilter
+    val personId = fixedPayerId ?: payerFilter
     val list = store.sessions
         .filter { s ->
-            (payerId == null || s.payerId == payerId) && when (filter) {
+            (personId == null || s.paidById == personId || s.debtorId == personId) && when (filter) {
                 StatusFilter.All -> true
                 StatusFilter.Paid -> s.paid
                 StatusFilter.Unpaid -> !s.paid
@@ -220,14 +219,14 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
             if (fixedPayerId == null) {
                 Box {
                     Pill(
-                        label = payerFilter?.let { store.payerName(it) } ?: "לפי משלם",
+                        label = payerFilter?.let { store.payerName(it) } ?: "לפי אדם",
                         selected = payerFilter != null,
                         onClick = { menuOpen = true },
                         trailing = Icons.Rounded.KeyboardArrowDown
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("כל המשלמים") },
+                            text = { Text("כולם") },
                             onClick = { payerFilter = null; menuOpen = false }
                         )
                         store.payers.forEach { p ->
@@ -292,12 +291,11 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
 }
 
 fun payerStatsText(st: PayerStats): String {
-    if (st.total == 0) return "אין פגישות עדיין"
-    val parts = mutableListOf("${st.total} פגישות")
-    if (st.paid > 0) parts.add("${st.paid} שולמו")
-    if (st.due > 0) parts.add("${st.due} לא שולמו")
-    if (st.soon > 0) parts.add("${st.soon} קרובות")
-    return parts.joinToString(" · ")
+    val parts = mutableListOf<String>()
+    if (st.paidCount == 1) parts.add("שילם על פגישה אחת")
+    else if (st.paidCount > 1) parts.add("שילם על ${st.paidCount} פגישות")
+    if (st.dueCount > 0) parts.add(unpaidCountText(st.dueCount))
+    return if (parts.isEmpty()) "אין פגישות" else parts.joinToString(" · ")
 }
 
 @Composable
@@ -314,6 +312,14 @@ private fun PayerSummaryCard(st: PayerStats) {
                 fontWeight = FontWeight.SemiBold,
                 color = if (st.debt > 0) AuraColors.Debt else AuraColors.PaidFg
             )
+        }
+        if (st.paidSum > 0) {
+            Spacer(Modifier.height(6.dp))
+            Row {
+                Text("שולם על ידו בסך הכל", fontSize = 13.sp, color = AuraColors.Muted)
+                Spacer(Modifier.weight(1f))
+                Text(fmtMoney(st.paidSum), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.PaidFg)
+            }
         }
     }
 }
@@ -345,7 +351,6 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                 DetailRow("תאריך", fmtDate(s.date))
                 DetailRow("שעה", fmtTime(s.time))
                 DetailRow("מחיר", fmtMoney(s.price))
-                DetailRow(payerRole(s.paid), store.payerName(s.payerId))
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -356,9 +361,10 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                     Spacer(Modifier.weight(1f))
                     StatusChip(store.statusOf(s))
                 }
-                if (s.paid && s.paidDate != null) {
+                if (s.paid) {
                     HorizontalDivider(color = AuraColors.Line)
-                    DetailRow("תאריך תשלום", fmtDate(s.paidDate))
+                    DetailRow("שולם על ידי", s.paidById?.let { store.payerName(it) } ?: "—")
+                    if (s.paidDate != null) DetailRow("תאריך תשלום", fmtDate(s.paidDate))
                 }
                 if (s.notes.isNotBlank()) {
                     HorizontalDivider(color = AuraColors.Line)
@@ -375,11 +381,11 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
             }
 
             if (s.paid) {
-                SecondaryButton("סימון כלא שולם", { store.setPaid(s.id, false) })
+                SecondaryButton("שינוי: שולם על ידי", { showPayer = true })
+                SecondaryButton("סימון כלא שולם", { store.markUnpaid(s.id) })
             } else {
                 PrimaryButton("סימון כשולם", { showPaidBy = true })
             }
-            SecondaryButton("שינוי: ${payerRole(s.paid)}", { showPayer = true })
             SecondaryButton("עריכת פגישה", { nav.go(Route.Form(editId = s.id)) })
             SecondaryButton("מחיקת פגישה", { showDelete = true }, danger = true)
             Spacer(Modifier.height(12.dp))
@@ -391,7 +397,7 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
             onDismissRequest = { showPayer = false },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { showPayer = false }) { Text("ביטול") } },
-            title = { Text(payerRole(s.paid)) },
+            title = { Text("שולם על ידי") },
             text = {
                 Column {
                     store.payers.forEach { p ->
@@ -400,14 +406,14 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                                 .fillMaxWidth()
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                                 .clickable {
-                                    store.changePayer(s.id, p.id)
+                                    store.updatePaidInfo(s.id, p.id, s.paidDate ?: java.time.LocalDate.now())
                                     showPayer = false
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(selected = p.id == s.payerId, onClick = {
-                                store.changePayer(s.id, p.id)
+                            RadioButton(selected = p.id == s.paidById, onClick = {
+                                store.updatePaidInfo(s.id, p.id, s.paidDate ?: java.time.LocalDate.now())
                                 showPayer = false
                             })
                             Text(p.name, fontSize = 16.sp)
@@ -432,14 +438,14 @@ fun DetailsScreen(store: AuraStore, nav: Nav, id: String) {
                                 .fillMaxWidth()
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                                 .clickable {
-                                    store.setPaid(s.id, true, byId = p.id)
+                                    store.markPaid(s.id, p.id)
                                     showPaidBy = false
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(selected = p.id == s.payerId, onClick = {
-                                store.setPaid(s.id, true, byId = p.id)
+                            RadioButton(selected = false, onClick = {
+                                store.markPaid(s.id, p.id)
                                 showPaidBy = false
                             })
                             Text(p.name, fontSize = 16.sp)
@@ -493,7 +499,7 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 fun PayerEditDialog(store: AuraStore, payerId: String, onDismiss: () -> Unit, onDeleted: () -> Unit) {
     var name by remember { mutableStateOf(store.payerName(payerId)) }
-    val hasSessions = store.sessions.any { it.payerId == payerId }
+    val hasSessions = store.sessions.any { it.paidById == payerId || it.debtorId == payerId }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("עריכת משלם") },

@@ -43,7 +43,7 @@ object Reminders {
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pendingIntent(ctx, sessionId, type, text))
     }
 
-    fun schedule(ctx: Context, s: Session, payerName: String) {
+    fun schedule(ctx: Context, s: Session) {
         cancel(ctx, s.id)
         val zone = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
@@ -57,7 +57,7 @@ object Reminders {
         if (s.remindPay && !s.paid) {
             val at = s.date.plusDays(1).atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
             if (at > now) {
-                setAlarm(ctx, s.id, 1, at, "לא סומן תשלום על הפגישה מ־${fmtDayMonth(s.date)} (משלם: $payerName)")
+                setAlarm(ctx, s.id, 1, at, "לא סומן תשלום על הפגישה מ־${fmtDayMonth(s.date)}")
             }
         }
         s.customRemindAt?.let { at ->
@@ -67,8 +67,7 @@ object Reminders {
 
     fun rescheduleAll(ctx: Context, snapshot: Repo.Snapshot) {
         snapshot.sessions.forEach { s ->
-            val name = snapshot.payers.firstOrNull { it.id == s.payerId }?.name ?: ""
-            schedule(ctx, s, name)
+            schedule(ctx, s)
         }
     }
 }
