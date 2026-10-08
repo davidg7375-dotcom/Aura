@@ -50,108 +50,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 // ======================= חובות =======================
 
 @Composable
 fun DebtsScreen(store: AuraStore, nav: Nav) {
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val selected = remember { mutableStateListOf<String>() }
     var showPay by remember { mutableStateOf(false) }
-    var showAssign by remember { mutableStateOf(false) }
+    var showList by remember { mutableStateOf(false) }
 
-    val groups = store.payers
-        .map { p -> p to store.dueFor(p.id) }
+    val due = store.dueSessions()
+    val dueIds = due.map { it.id }.toSet()
+    LaunchedEffect(dueIds) { selected.retainAll(dueIds) }
+
+    val rows = store.payers
+        .map { p -> p to store.balanceOf(p.id) }
         .sortedWith(
-            compareByDescending<Pair<Payer, List<Session>>> { g -> g.second.sumOf { it.price } }
+            compareByDescending<Pair<Payer, Balance>> { it.second.money }
                 .thenBy { it.first.name }
         )
-    val unassigned = store.dueUnassigned()
-
-    // פגישה שכבר לא חוב (שולמה / נמחקה) יוצאת מהבחירה אוטומטית
-    val dueIds = store.dueSessions().map { it.id }.toSet()
-    LaunchedEffect(dueIds) { selected.retainAll(dueIds) }
 
     val chosen = store.sessions.filter { it.id in selected }
     val chosenSum = chosen.sumOf { it.price }
-
-    @Composable
-    fun DebtCard(
-        key: String,
-        title: String,
-        list: List<Session>,
-        leading: @Composable () -> Unit,
-        hint: String? = null
-    ) {
-        val sum = list.sumOf { it.price }
-        val canOpen = list.isNotEmpty()
-        val open = canOpen && (expanded[key] ?: true)
-        AuraCard(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .then(if (canOpen) Modifier.clickable { expanded[key] = !open } else Modifier),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                leading()
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
-                    Text(
-                        unpaidCountText(list.size),
-                        fontSize = 13.sp,
-                        color = if (canOpen) AuraColors.DueFg else AuraColors.Muted
-                    )
-                }
-                Text(
-                    fmtMoney(sum),
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (sum > 0) AuraColors.Debt else AuraColors.PaidFg
-                )
-                if (canOpen) {
-                    Icon(
-                        if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
-                        null,
-                        tint = AuraColors.Muted
-                    )
-                }
-            }
-            if (open) {
-                if (hint != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(hint, fontSize = 12.sp, color = AuraColors.Muted)
-                }
-                val allSelected = list.all { it.id in selected }
-                TextButton(onClick = {
-                    if (allSelected) selected.removeAll(list.map { it.id })
-                    else list.forEach { if (it.id !in selected) selected.add(it.id) }
-                }) {
-                    Text(
-                        if (allSelected) "ביטול בחירה" else "בחירת כל הפגישות",
-                        fontSize = 13.sp,
-                        color = AuraColors.GreenDark
-                    )
-                }
-                list.forEachIndexed { i, s ->
-                    if (i > 0) HorizontalDivider(color = AuraColors.Line)
-                    DebtRow(
-                        s = s,
-                        checked = s.id in selected,
-                        onToggle = { if (s.id in selected) selected.remove(s.id) else selected.add(s.id) },
-                        onOpen = { nav.go(Route.Details(s.id)) }
-                    )
-                }
-                HorizontalDivider(color = AuraColors.Line)
-                Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 4.dp, end = 4.dp)) {
-                    Text("סה\"כ", fontSize = 15.sp, color = AuraColors.Muted)
-                    Spacer(Modifier.weight(1f))
-                    Text(fmtMoney(sum), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AuraColors.Debt)
-                }
-            }
-        }
-    }
+    val unpaidSum = store.unpaidSum()
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("חובות")
@@ -162,41 +84,104 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val total = store.totalDebt()
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Rounded.AccountBalanceWallet, size = 48.dp)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("סה\"כ חובות פתוחים", fontSize = 14.sp, color = AuraColors.Muted)
-                        Text(unpaidCountText(dueIds.size), fontSize = 13.sp, color = AuraColors.Muted)
+                        Text("לא שולם", fontSize = 14.sp, color = AuraColors.Muted)
+                        Text(
+                            if (due.isEmpty()) "הכול שולם" else sessionsPhrase(Ledger.units(unpaidSum, store.defaultPrice)),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (due.isEmpty()) AuraColors.PaidFg else AuraColors.Debt
+                        )
                     }
-                    Text(
-                        fmtMoney(total),
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (total > 0) AuraColors.Debt else AuraColors.PaidFg
-                    )
+                    if (due.isNotEmpty()) {
+                        Text(fmtMoney(unpaidSum), fontSize = 13.sp, color = AuraColors.Muted)
+                    }
                 }
             }
 
-            if (unassigned.isNotEmpty()) {
-                DebtCard(
-                    key = "unassigned",
-                    title = "לא משויך",
-                    list = unassigned,
-                    leading = { IconBadge(Icons.Rounded.Info, size = 44.dp) },
-                    hint = "בחרו פגישות ולחצו \"שיוך לאדם\" כדי לרשום עליהן חוב."
-                )
+            rows.forEach { (p, b) ->
+                AuraCard(Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(size = 44.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(p.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                            Text(
+                                "החלק: ${sessionsAmount(b.share)} · שילם: ${sessionsAmount(b.paid)}",
+                                fontSize = 12.sp,
+                                color = AuraColors.Muted
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                balanceText(b),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = balanceColor(b.kind)
+                            )
+                            if (b.kind != BalanceKind.Even) {
+                                Text(
+                                    fmtMoney(kotlin.math.abs(b.money).roundToInt()),
+                                    fontSize = 11.sp,
+                                    color = AuraColors.Muted
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            groups.forEach { (payer, list) ->
-                DebtCard(
-                    key = payer.id,
-                    title = payer.name,
-                    list = list,
-                    leading = { Avatar(size = 44.dp) }
-                )
+            if (due.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { showList = !showList }
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "סימון פגישות כשולמו · ${unpaidCountText(due.size)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AuraColors.GreenDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        if (showList) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        null,
+                        tint = AuraColors.Muted
+                    )
+                }
+                if (showList) {
+                    AuraCard(Modifier.fillMaxWidth()) {
+                        val allSelected = due.all { it.id in selected }
+                        TextButton(onClick = {
+                            if (allSelected) selected.clear()
+                            else due.forEach { if (it.id !in selected) selected.add(it.id) }
+                        }) {
+                            Text(
+                                if (allSelected) "ביטול בחירה" else "בחירת כל הפגישות",
+                                fontSize = 13.sp,
+                                color = AuraColors.GreenDark
+                            )
+                        }
+                        due.forEachIndexed { i, s ->
+                            if (i > 0) HorizontalDivider(color = AuraColors.Line)
+                            DebtRow(
+                                s = s,
+                                checked = s.id in selected,
+                                onToggle = { if (s.id in selected) selected.remove(s.id) else selected.add(s.id) },
+                                onOpen = { nav.go(Route.Details(s.id)) }
+                            )
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -207,54 +192,20 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SecondaryButton("שיוך לאדם", { showAssign = true }, Modifier.weight(1f))
                     PrimaryButton(
                         "סימון כשולמו · ${fmtMoney(chosenSum)}",
                         { showPay = true },
-                        Modifier.weight(1.4f)
+                        Modifier.fillMaxWidth()
                     )
                 }
             }
         }
     }
 
-    if (showAssign) {
-        AlertDialog(
-            onDismissRequest = { showAssign = false },
-            title = { Text("שיוך חוב לאדם") },
-            text = {
-                Column {
-                    Text(
-                        "${selected.size} פגישות · ${fmtMoney(chosenSum)}",
-                        fontSize = 13.sp,
-                        color = AuraColors.Muted
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    store.payers.forEach { p ->
-                        PersonOption(p.name, false) {
-                            store.assignDebt(selected.toList(), p.id)
-                            selected.clear()
-                            showAssign = false
-                        }
-                    }
-                    PersonOption("ללא שיוך", false) {
-                        store.assignDebt(selected.toList(), null)
-                        selected.clear()
-                        showAssign = false
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showAssign = false }) { Text("ביטול") } }
-        )
-    }
-
     if (showPay) {
-        val owners = chosen.map { it.debtorId }.toSet()
-        var pickedId by remember(owners) { mutableStateOf(owners.singleOrNull()) }
+        var pickedId by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showPay = false },
             title = { Text("שולם על ידי") },
@@ -370,15 +321,12 @@ fun PayersScreen(store: AuraStore, nav: Nav) {
                             Text(p.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                             Text(payerStatsText(st), fontSize = 13.sp, color = AuraColors.Muted)
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("חוב", fontSize = 12.sp, color = AuraColors.Muted)
-                            Text(
-                                fmtMoney(st.debt),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (st.debt > 0) AuraColors.Debt else AuraColors.PaidFg
-                            )
-                        }
+                        Text(
+                            balanceText(st.balance),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = balanceColor(st.balance.kind)
+                        )
                     }
                 }
             }

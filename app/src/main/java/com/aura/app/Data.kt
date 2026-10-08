@@ -87,10 +87,8 @@ object Repo {
                 val j = ss.getJSONObject(i)
                 val paid = j.optBoolean("paid", false)
                 fun str(key: String): String? = if (!j.has(key) || j.isNull(key)) null else j.getString(key)
-                // מיגרציה מגרסאות קודמות (שדה payerId): אם שולם – זה מי ששילם; אם לא – שיוך החוב.
-                val legacy = str("payerId")
-                val paidBy = if (paid) (str("paidById") ?: legacy) else null
-                val debtor = if (paid) null else (str("debtorId") ?: legacy)
+                // מיגרציה מגרסאות קודמות (שדה payerId): אם שולם – זה מי ששילם; אם לא – אין "שולם על ידי".
+                val paidBy = if (paid) (str("paidById") ?: str("payerId")) else null
                 Session(
                     id = j.getString("id"),
                     date = LocalDate.parse(j.getString("date")),
@@ -99,7 +97,6 @@ object Repo {
                     paid = paid,
                     paidDate = if (j.isNull("paidDate")) null else LocalDate.parse(j.getString("paidDate")),
                     paidById = paidBy,
-                    debtorId = debtor,
                     notes = j.optString("notes", ""),
                     remindBeforeMin = if (j.isNull("remindBeforeMin")) null else j.getInt("remindBeforeMin"),
                     remindPay = j.optBoolean("remindPay", false),
@@ -129,7 +126,6 @@ object Repo {
             j.put("paid", x.paid)
             j.put("paidDate", x.paidDate?.toString() ?: JSONObject.NULL)
             j.put("paidById", x.paidById ?: JSONObject.NULL)
-            j.put("debtorId", x.debtorId ?: JSONObject.NULL)
             j.put("notes", x.notes)
             j.put("remindBeforeMin", x.remindBeforeMin ?: JSONObject.NULL)
             j.put("remindPay", x.remindPay)
@@ -210,13 +206,6 @@ class AuraStore(private val app: Context) {
         upsertSession(s.copy(paidById = byId, paidDate = date))
     }
 
-    /** שיוך חוב לאדם בניהול החובות (null = הסרת שיוך). */
-    fun assignDebt(ids: Collection<String>, personId: String?) {
-        if (ids.isEmpty()) return
-        sessions = Ledger.assignDebt(sessions, ids.toSet(), personId)
-        persist()
-    }
-
     /** אדם אחד משלם בפועל על כמה פגישות: כל אחת נשארת פגישה נפרדת עם אותו מחיר. */
     fun markPaidMany(ids: Collection<String>, byId: String, date: LocalDate = LocalDate.now()) {
         if (ids.isEmpty()) return
@@ -253,7 +242,7 @@ class AuraStore(private val app: Context) {
 
     /** מחיקה אפשרית רק למשלם ללא פגישות. */
     fun deletePayer(id: String): Boolean {
-        if (sessions.any { it.paidById == id || it.debtorId == id }) return false
+        if (sessions.any { it.paidById == id }) return false
         payers = payers.filter { it.id != id }
         persist()
         return true
@@ -270,14 +259,14 @@ class AuraStore(private val app: Context) {
 
     fun statusOf(s: Session): PayStatus = Ledger.status(s, LocalDateTime.now())
 
-    /** כל הפגישות שלא שולמו (שכבר התקיימו) = חוב. */
+    /** פגישות שכבר התקיימו ולא שולמו, מהחדשה לישנה. */
     fun dueSessions(): List<Session> = Ledger.dueSessions(sessions, LocalDateTime.now())
 
-    fun dueFor(personId: String): List<Session> = Ledger.dueFor(sessions, personId, LocalDateTime.now())
+    fun unpaidSum(): Int = Ledger.unpaidSum(sessions, LocalDateTime.now())
 
-    fun dueUnassigned(): List<Session> = Ledger.dueUnassigned(sessions, LocalDateTime.now())
-
-    fun totalDebt(): Int = Ledger.totalDebt(sessions, LocalDateTime.now())
+    /** מאזן אדם לפי חלוקה שווה בין כל האנשים. */
+    fun balanceOf(personId: String): Balance =
+        Ledger.balance(sessions, payers.map { it.id }, personId, defaultPrice, LocalDateTime.now())
 
     fun nextSession(): Session? {
         val now = LocalDateTime.now()
@@ -297,5 +286,6 @@ class AuraStore(private val app: Context) {
             .take(n)
     }
 
-    fun statsOf(payerId: String): PayerStats = Ledger.stats(sessions, payerId, LocalDateTime.now())
+    fun statsOf(personId: String): PayerStats =
+        Ledger.stats(sessions, payers.map { it.id }, personId, defaultPrice, LocalDateTime.now())
 }

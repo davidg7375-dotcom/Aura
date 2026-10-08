@@ -133,7 +133,6 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             paid = paid,
             paidDate = if (paid) paidDate else null,
             paidById = if (paid) paidBy else null,
-            debtorId = if (paid) null else existing?.debtorId,
             notes = notes.trim(),
             remindBeforeMin = if (remindOn) remindBefore else null,
             remindPay = remindOn && remindPay,

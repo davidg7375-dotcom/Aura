@@ -57,7 +57,8 @@ import androidx.compose.ui.unit.sp
 fun HomeScreen(store: AuraStore, nav: Nav) {
     val next = store.nextSession()
     val recent = store.recentSessions(6)
-    val debt = store.totalDebt()
+    val unpaid = Ledger.units(store.unpaidSum(), store.defaultPrice)
+    val hasUnpaid = !unpaid.isZero
 
     Column(
         Modifier
@@ -118,8 +119,8 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
             ) { nav.tab(Route.Sessions) }
             SummaryCard(
                 "חובות פתוחים",
-                fmtMoney(debt),
-                if (debt > 0) AuraColors.Debt else AuraColors.Ink,
+                if (hasUnpaid) sessionsPhrase(unpaid) else "אין",
+                if (hasUnpaid) AuraColors.Debt else AuraColors.Ink,
                 Modifier.weight(1f)
             ) { nav.tab(Route.Debts) }
         }
@@ -183,7 +184,7 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
     val personId = fixedPayerId ?: payerFilter
     val list = store.sessions
         .filter { s ->
-            (personId == null || s.paidById == personId || s.debtorId == personId) && when (filter) {
+            (personId == null || s.paidById == personId) && when (filter) {
                 StatusFilter.All -> true
                 StatusFilter.Paid -> s.paid
                 StatusFilter.Unpaid -> !s.paid
@@ -290,37 +291,30 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
     }
 }
 
-fun payerStatsText(st: PayerStats): String {
-    val parts = mutableListOf<String>()
-    if (st.paidCount == 1) parts.add("שילם על פגישה אחת")
-    else if (st.paidCount > 1) parts.add("שילם על ${st.paidCount} פגישות")
-    if (st.dueCount > 0) parts.add(unpaidCountText(st.dueCount))
-    return if (parts.isEmpty()) "אין פגישות" else parts.joinToString(" · ")
+fun payerStatsText(st: PayerStats): String = when (st.paidCount) {
+    0 -> "עדיין לא שילם"
+    1 -> "שילם על פגישה אחת"
+    else -> "שילם על ${st.paidCount} פגישות"
 }
 
 @Composable
 private fun PayerSummaryCard(st: PayerStats) {
+    val b = st.balance
     AuraCard(Modifier.fillMaxWidth()) {
         Text(payerStatsText(st), fontSize = 14.sp, color = AuraColors.Muted)
         Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("חוב נוכחי", fontSize = 15.sp, color = AuraColors.Ink)
-            Spacer(Modifier.weight(1f))
-            Text(
-                fmtMoney(st.debt),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (st.debt > 0) AuraColors.Debt else AuraColors.PaidFg
-            )
-        }
-        if (st.paidSum > 0) {
-            Spacer(Modifier.height(6.dp))
-            Row {
-                Text("שולם על ידו בסך הכל", fontSize = 13.sp, color = AuraColors.Muted)
-                Spacer(Modifier.weight(1f))
-                Text(fmtMoney(st.paidSum), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.PaidFg)
-            }
-        }
+        Text(
+            balanceText(b),
+            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = balanceColor(b.kind)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "החלק: ${sessionsAmount(b.share)} · שילם: ${sessionsAmount(b.paid)}",
+            fontSize = 13.sp,
+            color = AuraColors.Muted
+        )
     }
 }
 
@@ -499,7 +493,7 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 fun PayerEditDialog(store: AuraStore, payerId: String, onDismiss: () -> Unit, onDeleted: () -> Unit) {
     var name by remember { mutableStateOf(store.payerName(payerId)) }
-    val hasSessions = store.sessions.any { it.paidById == payerId || it.debtorId == payerId }
+    val hasSessions = store.sessions.any { it.paidById == payerId }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("עריכת משלם") },

@@ -53,6 +53,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -188,26 +189,52 @@ fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Mod
             Modifier
                 .clip(shape)
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
+                // תאריך ושעה = המידע הבולט ביותר
                 Text(
                     "${fmtDateShort(s.date)} · ${fmtTime(s.time)}",
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = AuraColors.Ink
+                    color = AuraColors.Ink,
+                    maxLines = 1
                 )
-                val line = when (status) {
-                    PayStatus.Paid -> "שולם על ידי ${s.paidById?.let { store.payerName(it) } ?: "—"}"
-                    PayStatus.Due -> "לא שולם"
-                    PayStatus.Soon -> "קרוב · לא שולם"
-                }
-                Text(line, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = statusColor(status))
+                PaymentMeta(s, status, store)
             }
-            Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+            Spacer(Modifier.width(10.dp))
+            Text(fmtMoney(s.price), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
         }
     }
+}
+
+/** סטטוס תשלום קטן ועדין, בשורה אחת שאינה מגדילה את הכרטיס: "✓ שולם · שם" / "לא שולם". */
+@Composable
+private fun PaymentMeta(s: Session, status: PayStatus, store: AuraStore) {
+    when (status) {
+        PayStatus.Paid -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("✓ שולם", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AuraColors.PaidFg, maxLines = 1)
+            s.paidById?.let { id ->
+                Text(
+                    " · ${store.payerName(id)}",
+                    fontSize = 12.sp,
+                    color = AuraColors.Muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+        }
+        PayStatus.Due -> Text("לא שולם", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AuraColors.DueFg, maxLines = 1)
+        PayStatus.Soon -> Text("קרוב · לא שולם", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AuraColors.SoonFg, maxLines = 1)
+    }
+}
+
+fun balanceColor(kind: BalanceKind): Color = when (kind) {
+    BalanceKind.Owes -> AuraColors.Debt
+    BalanceKind.Credit -> AuraColors.PaidFg
+    BalanceKind.Even -> AuraColors.Muted
 }
 
 // ---------- כותרת מסך ----------
