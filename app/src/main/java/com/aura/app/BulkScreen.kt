@@ -50,8 +50,7 @@ private data class BulkRow(
     val date: LocalDate,
     val price: String,
     val payerId: String,
-    val paid: Boolean,
-    val paidById: String?
+    val paid: Boolean
 )
 
 /** הוספת כמה פגישות קודמות בבת אחת: לכל פגישה תאריך, מחיר, משלם, וסטטוס תשלום (ומי שילם בפועל). */
@@ -64,8 +63,7 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                 date = LocalDate.now().minusDays(7),
                 price = store.defaultPrice.toString(),
                 payerId = store.lastPayerId(),
-                paid = true,
-                paidById = null
+                paid = true
             )
         )
     }
@@ -82,8 +80,7 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                 price = r.price.toInt(),
                 payerId = r.payerId,
                 paid = r.paid,
-                paidDate = if (r.paid) r.date else null,
-                paidById = if (r.paid && r.paidById != null && r.paidById != r.payerId) r.paidById else null
+                paidDate = if (r.paid) r.date else null
             )
         }
         store.addSessions(list)
@@ -101,7 +98,7 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "הוסיפו את הפגישות שכבר היו. לכל פגישה בוחרים מי המשלם, אם שולם, ומי שילם בפועל. השעה נקבעת ל־18:00 וניתן לשנות אותה בעריכת הפגישה.",
+                "הוסיפו את הפגישות שכבר היו. לכל פגישה בוחרים אם שולמה, ומי שילם עליה. השעה נקבעת ל־18:00 וניתן לשנות אותה בעריכת הפגישה.",
                 fontSize = 14.sp,
                 color = AuraColors.Muted
             )
@@ -140,20 +137,14 @@ fun BulkScreen(store: AuraStore, nav: Nav) {
                         )
 
                         Spacer(Modifier.height(8.dp))
-                        PayerPicker("משלם", store, r.payerId) { rows[i] = r.copy(payerId = it) }
+                        PayerPicker(payerRole(r.paid), store, r.payerId) { rows[i] = r.copy(payerId = it) }
 
                         Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Pill("שולם", r.paid, { rows[i] = r.copy(paid = true) })
-                            Pill("לא שולם", !r.paid, { rows[i] = r.copy(paid = false, paidById = null) })
+                            Pill("לא שולם", !r.paid, { rows[i] = r.copy(paid = false) })
                         }
 
-                        if (r.paid) {
-                            Spacer(Modifier.height(10.dp))
-                            PayerPicker("שולם ע״י", store, r.paidById ?: r.payerId) {
-                                rows[i] = r.copy(paidById = it)
-                            }
-                        }
                     }
                 }
             }

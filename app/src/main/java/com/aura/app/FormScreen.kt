@@ -87,8 +87,6 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
     var paid by remember { mutableStateOf(existing?.paid ?: false) }
     var paidDate by remember { mutableStateOf(existing?.paidDate ?: LocalDate.now()) }
-    var paidById by remember { mutableStateOf(existing?.paidById) }
-    var paidByMenu by remember { mutableStateOf(false) }
 
     var remindOn by remember {
         mutableStateOf(
@@ -134,7 +132,6 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             payerId = payerId,
             paid = paid,
             paidDate = if (paid) paidDate else null,
-            paidById = if (paid && paidById != payerId) paidById else null,
             notes = notes.trim(),
             remindBeforeMin = if (remindOn) remindBefore else null,
             remindPay = remindOn && remindPay,
@@ -178,7 +175,7 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             }
 
             Box {
-                FormRow(Icons.Rounded.Person, "משלם", store.payerName(payerId)) { payerMenu = true }
+                FormRow(Icons.Rounded.Person, payerRole(paid), store.payerName(payerId)) { payerMenu = true }
                 DropdownMenu(expanded = payerMenu, onDismissRequest = { payerMenu = false }) {
                     store.payers.forEach { p ->
                         DropdownMenuItem(
@@ -205,17 +202,6 @@ fun FormScreen(store: AuraStore, nav: Nav, editId: String?, presetDate: LocalDat
             ToggleRow(null, "שולם", paid) { paid = it }
             if (paid) {
                 FormRow(Icons.Rounded.CalendarMonth, "תאריך תשלום", fmtDate(paidDate)) { dialog = "paidDate" }
-                Box {
-                    FormRow(Icons.Rounded.Person, "שולם ע״י", store.payerName(paidById ?: payerId)) { paidByMenu = true }
-                    DropdownMenu(expanded = paidByMenu, onDismissRequest = { paidByMenu = false }) {
-                        store.payers.forEach { p ->
-                            DropdownMenuItem(
-                                text = { Text(p.name) },
-                                onClick = { paidById = p.id; paidByMenu = false }
-                            )
-                        }
-                    }
-                }
             }
 
             ToggleRow(Icons.Rounded.Notifications, "תזכורת", remindOn) { on ->

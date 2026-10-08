@@ -176,32 +176,37 @@ fun statusColor(status: PayStatus): Color = when (status) {
 
 @Composable
 fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    AuraCard(modifier.fillMaxWidth(), onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBadge(Icons.Rounded.CalendarMonth, size = 46.dp)
-            Spacer(Modifier.width(14.dp))
+    val status = store.statusOf(s)
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = shape,
+        color = AuraColors.Card,
+        border = BorderStroke(1.dp, AuraColors.Line)
+    ) {
+        Row(
+            Modifier
+                .clip(shape)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
-                Text(fmtDate(s.date), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                 Text(
-                    "${fmtWeekday(s.date)} · ${fmtTime(s.time)}",
-                    fontSize = 13.sp,
-                    color = AuraColors.Muted
+                    "${fmtDateShort(s.date)} · ${fmtTime(s.time)}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuraColors.Ink
                 )
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
-                    Text("  ·  ", fontSize = 14.sp, color = AuraColors.Muted)
-                    Text("משלם: ${store.payerName(s.payerId)}", fontSize = 14.sp, color = AuraColors.Muted)
+                val who = store.payerName(s.payerId)
+                val line = when (status) {
+                    PayStatus.Paid -> "שולם על ידי $who"
+                    PayStatus.Due -> "$who · לא שולם"
+                    PayStatus.Soon -> "$who · קרוב"
                 }
-                if (s.paid && s.effectivePaidBy != s.payerId) {
-                    Text(
-                        "שולם ע״י ${store.payerName(s.effectivePaidBy)}",
-                        fontSize = 13.sp,
-                        color = AuraColors.SoonFg
-                    )
-                }
+                Text(line, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = statusColor(status))
             }
-            StatusChip(store.statusOf(s))
+            Text(fmtMoney(s.price), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
         }
     }
 }
