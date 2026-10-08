@@ -34,6 +34,17 @@ data class Session(
     val dateTime: LocalDateTime get() = LocalDateTime.of(date, time)
 }
 
+/** חוב ידני: סכום שהוזן ידנית, לא קשור לפגישות ולא לחלוקה האוטומטית. */
+data class ManualDebt(
+    val id: String,
+    val to: String,
+    val amount: Int,
+    val reason: String = "",
+    val paid: Boolean = false,
+    val createdDate: LocalDate,
+    val paidDate: LocalDate? = null
+)
+
 enum class PayStatus { Paid, Due, Soon }
 
 /** כמות בפגישות כשבר מדויק (שקלים ÷ מחיר פגישה). */

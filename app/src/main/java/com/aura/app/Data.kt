@@ -70,7 +70,12 @@ fun defaultPayers(): List<Payer> = listOf(
 object Repo {
     private const val FILE = "aura_data.json"
 
-    data class Snapshot(val payers: List<Payer>, val sessions: List<Session>, val defaultPrice: Int)
+    data class Snapshot(
+        val payers: List<Payer>,
+        val sessions: List<Session>,
+        val defaultPrice: Int,
+        val manualDebts: List<ManualDebt> = emptyList()
+    )
 
     fun load(ctx: Context): Snapshot {
         val f = File(ctx.filesDir, FILE)
@@ -103,7 +108,20 @@ object Repo {
                     customRemindAt = if (j.isNull("customRemindAt")) null else j.getLong("customRemindAt")
                 )
             }
-            Snapshot(payers, sessions, o.optInt("defaultPrice", 450))
+            val md = o.optJSONArray("manualDebts") ?: JSONArray()
+            val manual = (0 until md.length()).map { i ->
+                val j = md.getJSONObject(i)
+                ManualDebt(
+                    id = j.getString("id"),
+                    to = j.optString("to", ""),
+                    amount = j.getInt("amount"),
+                    reason = j.optString("reason", ""),
+                    paid = j.optBoolean("paid", false),
+                    createdDate = LocalDate.parse(j.getString("createdDate")),
+                    paidDate = if (!j.has("paidDate") || j.isNull("paidDate")) null else LocalDate.parse(j.getString("paidDate"))
+                )
+            }
+            Snapshot(payers, sessions, o.optInt("defaultPrice", 450), manual)
         } catch (e: Exception) {
             // קובץ פגום: שומרים עותק גיבוי ולא מוחקים אותו
             f.renameTo(File(ctx.filesDir, "$FILE.bak"))
@@ -132,7 +150,17 @@ object Repo {
             j.put("customRemindAt", x.customRemindAt ?: JSONObject.NULL)
             sessions.put(j)
         }
+        val md = JSONArray()
+        s.manualDebts.forEach { x ->
+            md.put(
+                JSONObject()
+                    .put("id", x.id).put("to", x.to).put("amount", x.amount).put("reason", x.reason)
+                    .put("paid", x.paid).put("createdDate", x.createdDate.toString())
+                    .put("paidDate", x.paidDate?.toString() ?: JSONObject.NULL)
+            )
+        }
         val o = JSONObject()
+        o.put("manualDebts", md)
         o.put("defaultPrice", s.defaultPrice)
         o.put("payers", payers)
         o.put("sessions", sessions)
@@ -152,15 +180,19 @@ class AuraStore(private val app: Context) {
     var defaultPrice by mutableStateOf(450)
         private set
 
+    var manualDebts by mutableStateOf(listOf<ManualDebt>())
+        private set
+
     init {
         val s = Repo.load(app)
+        manualDebts = s.manualDebts
         payers = s.payers
         sessions = s.sessions
         defaultPrice = s.defaultPrice
     }
 
     private fun persist() {
-        Repo.save(app, Repo.Snapshot(payers, sessions, defaultPrice))
+        Repo.save(app, Repo.Snapshot(payers, sessions, defaultPrice, manualDebts))
     }
 
     fun payerName(id: String): String = payers.firstOrNull { it.id == id }?.name ?: "—"
@@ -223,6 +255,30 @@ class AuraStore(private val app: Context) {
         persist()
         list.forEach { Reminders.schedule(app, it) }
     }
+
+    // --- חובות ידניים ---
+
+    fun addManualDebt(to: String, amount: Int, reason: String) {
+        if (amount <= 0) return
+        manualDebts = manualDebts + ManualDebt(
+            UUID.randomUUID().toString(), to.trim().ifEmpty { "המטפל" }, amount, reason.trim(), false, LocalDate.now()
+        )
+        persist()
+    }
+
+    fun setManualDebtPaid(id: String, paid: Boolean) {
+        manualDebts = manualDebts.map {
+            if (it.id == id) it.copy(paid = paid, paidDate = if (paid) LocalDate.now() else null) else it
+        }
+        persist()
+    }
+
+    fun deleteManualDebt(id: String) {
+        manualDebts = manualDebts.filter { it.id != id }
+        persist()
+    }
+
+    fun manualOpenSum(): Int = manualDebts.filter { !it.paid }.sumOf { it.amount }
 
     // --- משלמים ---
 

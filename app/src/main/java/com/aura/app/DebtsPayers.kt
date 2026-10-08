@@ -59,6 +59,7 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
     val selected = remember { mutableStateListOf<String>() }
     var showPay by remember { mutableStateOf(false) }
     var showList by remember { mutableStateOf(false) }
+    var showAddManual by remember { mutableStateOf(false) }
 
     val due = store.dueSessions()
     val dueIds = due.map { it.id }.toSet()
@@ -135,6 +136,8 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                 }
             }
 
+            ManualDebtsSection(store, onAdd = { showAddManual = true })
+
             if (due.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Row(
@@ -204,6 +207,8 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
         }
     }
 
+    if (showAddManual) AddManualDebtDialog(store) { showAddManual = false }
+
     if (showPay) {
         var pickedId by remember { mutableStateOf<String?>(null) }
         AlertDialog(
@@ -235,6 +240,133 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
             dismissButton = { TextButton(onClick = { showPay = false }) { Text("ביטול") } }
         )
     }
+}
+
+@Composable
+private fun ManualDebtsSection(store: AuraStore, onAdd: () -> Unit) {
+    var showPaid by remember { mutableStateOf(false) }
+    val open = store.manualDebts.filter { !it.paid }.sortedByDescending { it.createdDate }
+    val paid = store.manualDebts.filter { it.paid }.sortedByDescending { it.paidDate ?: it.createdDate }
+    Spacer(Modifier.height(4.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("חובות נוספים", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+            Text("לא קשורים לפגישות", fontSize = 11.sp, color = AuraColors.Muted)
+        }
+        if (open.isNotEmpty()) {
+            Text(fmtMoney(store.manualOpenSum()), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Debt)
+            Spacer(Modifier.width(8.dp))
+        }
+        TextButton(onClick = onAdd) {
+            Text("+ הוסף חוב", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.GreenDark)
+        }
+    }
+    AuraCard(Modifier.fillMaxWidth()) {
+        if (open.isEmpty()) {
+            Text("אין חובות נוספים פתוחים", fontSize = 13.sp, color = AuraColors.Muted)
+        }
+        open.forEachIndexed { i, x ->
+            if (i > 0) HorizontalDivider(color = AuraColors.Line)
+            ManualDebtRow(x, store)
+        }
+        if (paid.isNotEmpty()) {
+            HorizontalDivider(color = AuraColors.Line)
+            TextButton(onClick = { showPaid = !showPaid }) {
+                Text(
+                    (if (showPaid) "הסתרת היסטוריה" else "היסטוריה") + " · ${paid.size} שולמו",
+                    fontSize = 12.sp,
+                    color = AuraColors.Muted
+                )
+            }
+            if (showPaid) paid.forEach { ManualDebtRow(it, store) }
+        }
+    }
+}
+
+@Composable
+private fun ManualDebtRow(x: ManualDebt, store: AuraStore) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(
+            checked = x.paid,
+            onCheckedChange = { store.setManualDebtPaid(x.id, it) },
+            colors = CheckboxDefaults.colors(
+                checkedColor = AuraColors.Green,
+                uncheckedColor = AuraColors.Muted,
+                checkmarkColor = Color.White
+            )
+        )
+        Column(
+            Modifier.weight(1f).clickable { confirmDelete = true }.padding(vertical = 4.dp)
+        ) {
+            Text(
+                if (x.reason.isNotBlank()) x.reason else x.to,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (x.paid) AuraColors.Muted else AuraColors.Ink,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Text(
+                "${x.to} · ${fmtNumeric(x.createdDate)}" + if (x.paid) " · ✓ שולם" else "",
+                fontSize = 11.sp,
+                color = if (x.paid) AuraColors.PaidFg else AuraColors.Muted,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Text(
+            fmtMoney(x.amount),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (x.paid) AuraColors.Muted else AuraColors.Debt
+        )
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("מחיקת חוב") },
+            text = { Text("למחוק את החוב \"${if (x.reason.isNotBlank()) x.reason else x.to}\" (${fmtMoney(x.amount)})?") },
+            confirmButton = {
+                TextButton(onClick = { store.deleteManualDebt(x.id); confirmDelete = false }) { Text("מחיקה") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("ביטול") } }
+        )
+    }
+}
+
+@Composable
+private fun AddManualDebtDialog(store: AuraStore, onDismiss: () -> Unit) {
+    var to by remember { mutableStateOf("המטפל") }
+    var amount by remember { mutableStateOf("") }
+    var reason by remember { mutableStateOf("") }
+    val value = amount.trim().toIntOrNull() ?: 0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("הוספת חוב") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(to, { to = it }, singleLine = true, label = { Text("למי אני חייב") })
+                OutlinedTextField(
+                    amount,
+                    { amount = it.filter { c -> c.isDigit() }.take(6) },
+                    singleLine = true,
+                    label = { Text("סכום (₪)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+                OutlinedTextField(reason, { reason = it }, singleLine = true, label = { Text("סיבה (אופציונלי)") })
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = value > 0,
+                onClick = { store.addManualDebt(to, value, reason); onDismiss() }
+            ) { Text("הוספה") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } }
+    )
 }
 
 @Composable
