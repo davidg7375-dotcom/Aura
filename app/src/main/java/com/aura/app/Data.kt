@@ -278,7 +278,12 @@ class AuraStore(private val app: Context) {
         persist()
     }
 
-    fun manualOpenSum(): Int = manualDebts.filter { !it.paid }.sumOf { it.amount }
+    fun manualOpenSum(): Int = Ledger.manualOpenSum(manualDebts)
+
+    /** סך חובות פתוחים: פגישות + חובות ידניים. */
+    fun openTotal(): Int = Ledger.openTotal(sessions, manualDebts, LocalDateTime.now())
+
+    fun sessionNumbers(): Map<String, Int> = Ledger.sessionNumbers(sessions)
 
     // --- משלמים ---
 

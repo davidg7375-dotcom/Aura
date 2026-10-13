@@ -57,8 +57,8 @@ import androidx.compose.ui.unit.sp
 fun HomeScreen(store: AuraStore, nav: Nav) {
     val next = store.nextSession()
     val recent = store.recentSessions(6)
-    val unpaid = Ledger.units(store.unpaidSum(), store.defaultPrice)
-    val hasUnpaid = !unpaid.isZero
+    val openTotal = store.openTotal()
+    val hasUnpaid = openTotal > 0
 
     Column(
         Modifier
@@ -119,7 +119,7 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
             ) { nav.tab(Route.Sessions) }
             SummaryCard(
                 "חובות פתוחים",
-                if (hasUnpaid) sessionsPhrase(unpaid) else "אין",
+                if (hasUnpaid) fmtMoney(openTotal) else "אין",
                 if (hasUnpaid) AuraColors.Debt else AuraColors.Ink,
                 Modifier.weight(1f)
             ) { nav.tab(Route.Debts) }
@@ -190,7 +190,7 @@ fun SessionsScreen(store: AuraStore, nav: Nav, fixedPayerId: String? = null) {
                 StatusFilter.Unpaid -> !s.paid
             }
         }
-        .sortedByDescending { it.dateTime }
+        .sortedWith(compareBy<Session> { it.dateTime }.thenBy { it.id })
 
     Column(Modifier.fillMaxSize()) {
         if (fixedPayerId != null) {

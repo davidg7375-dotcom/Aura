@@ -96,6 +96,18 @@ object Ledger {
     fun unpaidSum(sessions: List<Session>, now: LocalDateTime): Int =
         dueSessions(sessions, now).sumOf { it.price }
 
+    /** חובות ידניים פתוחים (לא שולמו). נפרד לגמרי מחישוב הפגישות. */
+    fun manualOpenSum(manual: List<ManualDebt>): Int = manual.filter { !it.paid }.sumOf { it.amount }
+
+    /** סך כל החובות הפתוחים בשקלים: פגישות שלא שולמו + חובות ידניים פתוחים. כל חוב נספר פעם אחת. */
+    fun openTotal(sessions: List<Session>, manual: List<ManualDebt>, now: LocalDateTime): Int =
+        unpaidSum(sessions, now) + manualOpenSum(manual)
+
+    /** מספור פגישות עקבי: לפי סדר כרונולוגי (1 = המוקדמת ביותר), בלי כפילויות. נגזר מהנתונים, לא משנה תאריכים. */
+    fun sessionNumbers(sessions: List<Session>): Map<String, Int> =
+        sessions.sortedWith(compareBy<Session> { it.dateTime }.thenBy { it.id })
+            .mapIndexed { i, s -> s.id to i + 1 }.toMap()
+
     /** פגישות שנכנסות לחלוקה: שהתקיימו או ששולמו מראש. פגישה עתידית שלא שולמה עדיין לא נספרת. */
     fun costedSessions(sessions: List<Session>, now: LocalDateTime): List<Session> =
         sessions.filter { it.paid || !it.dateTime.isAfter(now) }

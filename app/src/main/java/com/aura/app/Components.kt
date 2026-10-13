@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material3.Button
+import androidx.compose.runtime.remember
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -193,14 +194,25 @@ fun SessionCard(s: Session, store: AuraStore, onClick: () -> Unit, modifier: Mod
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                // תאריך ושעה = המידע הבולט ביותר
-                Text(
-                    "${fmtDateShort(s.date)} · ${fmtTime(s.time)}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = AuraColors.Ink,
-                    maxLines = 1
-                )
+                // מספר פגישה = המידע הראשי; תאריך ושעה = משני וקטן
+                val numbers = remember(store.sessions) { store.sessionNumbers() }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "פגישה ${numbers[s.id] ?: ""}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AuraColors.Ink,
+                        maxLines = 1
+                    )
+                    Text(
+                        "  ${fmtDateShort(s.date)} · ${fmtTime(s.time)}",
+                        fontSize = 12.sp,
+                        color = AuraColors.Muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
                 PaymentMeta(s, status, store)
             }
             Spacer(Modifier.width(10.dp))

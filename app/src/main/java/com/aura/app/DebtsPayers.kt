@@ -85,21 +85,36 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            val manualSum = store.manualOpenSum()
+            val total = store.openTotal()
             AuraCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Rounded.AccountBalanceWallet, size = 48.dp)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("לא שולם", fontSize = 14.sp, color = AuraColors.Muted)
+                        Text("סך חובות פתוחים", fontSize = 14.sp, color = AuraColors.Muted)
                         Text(
-                            if (due.isEmpty()) "הכול שולם" else sessionsPhrase(Ledger.units(unpaidSum, store.defaultPrice)),
-                            fontSize = 22.sp,
+                            if (total == 0) "הכול שולם" else fmtMoney(total),
+                            fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (due.isEmpty()) AuraColors.PaidFg else AuraColors.Debt
+                            color = if (total == 0) AuraColors.PaidFg else AuraColors.Debt
                         )
                     }
-                    if (due.isNotEmpty()) {
-                        Text(fmtMoney(unpaidSum), fontSize = 13.sp, color = AuraColors.Muted)
+                }
+                if (total > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = AuraColors.Line)
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("מפגישות", fontSize = 13.sp, color = AuraColors.Muted, modifier = Modifier.weight(1f))
+                        Text(
+                            if (due.isEmpty()) "אין" else "${sessionsPhrase(Ledger.units(unpaidSum, store.defaultPrice))} · ${fmtMoney(unpaidSum)}",
+                            fontSize = 13.sp, color = AuraColors.Ink
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                        Text("חובות נוספים", fontSize = 13.sp, color = AuraColors.Muted, modifier = Modifier.weight(1f))
+                        Text(if (manualSum == 0) "אין" else fmtMoney(manualSum), fontSize = 13.sp, color = AuraColors.Ink)
                     }
                 }
             }
