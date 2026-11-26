@@ -153,6 +153,8 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
 
             ManualDebtsSection(store, onAdd = { showAddManual = true })
 
+            BreakdownCard(store)
+
             if (due.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Row(
@@ -254,6 +256,69 @@ fun DebtsScreen(store: AuraStore, nav: Nav) {
             },
             dismissButton = { TextButton(onClick = { showPay = false }) { Text("ביטול") } }
         )
+    }
+}
+
+/** פילוח יפה: לכל אדם – החלק שלו, כמה שילם (וכמה פגישות), והיתרה. */
+@Composable
+private fun BreakdownCard(store: AuraStore) {
+    val now = java.time.LocalDateTime.now()
+    val total = Ledger.totalCost(store.sessions, now)
+    val n = store.payers.size.coerceAtLeast(1)
+    val shareMoney = (total.toDouble() / n).roundToInt()
+    Spacer(Modifier.height(4.dp))
+    Text("פילוח", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+    AuraCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                "סה\"כ ${fmtMoney(total)} · ${fmtMoney(shareMoney)} לאדם",
+                fontSize = 13.sp,
+                color = AuraColors.Muted
+            )
+        }
+        store.payers.forEach { p ->
+            val st = store.statsOf(p.id)
+            val b = st.balance
+            val frac = if (shareMoney > 0) (st.paidSum.toFloat() / shareMoney).coerceIn(0f, 1f) else 0f
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = AuraColors.Line)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    p.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuraColors.Ink,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(balanceText(b), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = balanceColor(b.kind))
+            }
+            Spacer(Modifier.height(6.dp))
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(AuraColors.Sage)) {
+                Box(Modifier.fillMaxWidth(frac).height(6.dp).clip(RoundedCornerShape(3.dp)).background(AuraColors.Green))
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("חלק", fontSize = 11.sp, color = AuraColors.Muted)
+                    Text("${fmtMoney(shareMoney)} · ${sessionsAmount(b.share)}", fontSize = 13.sp, color = AuraColors.Ink)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("שילם", fontSize = 11.sp, color = AuraColors.Muted)
+                    Text(
+                        "${fmtMoney(st.paidSum)} · " + when (st.paidCount) {
+                            0 -> "0 פגישות"
+                            1 -> "פגישה אחת"
+                            else -> "${st.paidCount} פגישות"
+                        },
+                        fontSize = 13.sp,
+                        color = AuraColors.Ink
+                    )
+                }
+            }
+        }
     }
 }
 

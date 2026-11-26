@@ -108,6 +108,26 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
             }
         }
 
+        val suggestion = store.weeklySuggestion()
+        if (suggestion != null) {
+            Spacer(Modifier.height(12.dp))
+            AuraCard(Modifier.fillMaxWidth()) {
+                Text("פגישה מוצעת", fontSize = 13.sp, color = AuraColors.Muted)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${fmtWeekday(suggestion.toLocalDate())}, ${fmtDayMonth(suggestion.toLocalDate())} · ${fmtTime(suggestion.toLocalTime())}",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuraColors.Ink
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryButton("אישור", { store.acceptSuggestion(suggestion) }, Modifier.weight(1f))
+                    SecondaryButton("דילוג", { store.skipSuggestion(suggestion) }, Modifier.weight(1f))
+                }
+            }
+        }
+
         Spacer(Modifier.height(14.dp))
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -183,6 +183,36 @@ class AuraStore(private val app: Context) {
     var manualDebts by mutableStateOf(listOf<ManualDebt>())
         private set
 
+    private val prefs = app.getSharedPreferences("aura_prefs", Context.MODE_PRIVATE)
+    var weeklyEnabled by mutableStateOf(prefs.getBoolean("weeklyEnabled", true))
+        private set
+    private var dismissed by mutableStateOf(prefs.getStringSet("weeklyDismissed", emptySet()) ?: emptySet())
+
+    fun setWeeklyEnabled(v: Boolean) {
+        weeklyEnabled = v
+        prefs.edit().putBoolean("weeklyEnabled", v).apply()
+    }
+
+    /** הצעה לפגישה אוטומטית ביום חמישי 11:00 – מופיעה רק אם עוד לא אושרה/נדחתה ואין כבר פגישה באותו יום. */
+    fun weeklySuggestion(): LocalDateTime? {
+        if (!weeklyEnabled) return null
+        val c = nextThursdayAt11(LocalDateTime.now())
+        if (c.toString() in dismissed) return null
+        if (sessions.any { it.date == c.toLocalDate() }) return null
+        return c
+    }
+
+    fun acceptSuggestion(c: LocalDateTime) {
+        if (sessions.any { it.date == c.toLocalDate() }) return
+        upsertSession(Session(UUID.randomUUID().toString(), c.toLocalDate(), c.toLocalTime(), defaultPrice))
+    }
+
+    fun skipSuggestion(c: LocalDateTime) {
+        val n = (dismissed + c.toString()).toList().takeLast(30).toSet()
+        dismissed = n
+        prefs.edit().putStringSet("weeklyDismissed", n).apply()
+    }
+
     init {
         val s = Repo.load(app)
         manualDebts = s.manualDebts

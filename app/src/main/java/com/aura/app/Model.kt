@@ -1,5 +1,6 @@
 package com.aura.app
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -170,6 +171,17 @@ object Ledger {
     /** החזרת פגישה למצב "לא שולם": אין יותר "שולם על ידי". */
     fun markUnpaid(sessions: List<Session>, id: String): List<Session> =
         sessions.map { if (it.id == id) it.copy(paid = false, paidDate = null, paidById = null) else it }
+}
+
+/** יום חמישי הקרוב בשעה 11:00 (אם היום חמישי לפני 11:00 – היום). */
+fun nextThursdayAt11(now: LocalDateTime): LocalDateTime {
+    var d = now.toLocalDate()
+    repeat(8) {
+        val c = LocalDateTime.of(d, LocalTime.of(11, 0))
+        if (d.dayOfWeek == DayOfWeek.THURSDAY && c.isAfter(now)) return c
+        d = d.plusDays(1)
+    }
+    return LocalDateTime.of(d, LocalTime.of(11, 0))
 }
 
 // ---------- הצגת כמויות כשברים פשוטים: ½ ⅓ ¼ ¾ ----------

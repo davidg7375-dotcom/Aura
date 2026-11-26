@@ -59,6 +59,19 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(newBase.createConfigurationContext(cfg))
     }
 
+    private var stoppedAt = 0L
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = System.currentTimeMillis()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // נעילה מחדש אחרי יותר מ-30 שניות ברקע
+        if (stoppedAt != 0L && System.currentTimeMillis() - stoppedAt > 30_000) LockState.locked = true
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -68,7 +81,7 @@ class MainActivity : ComponentActivity() {
         Reminders.ensureChannel(this)
         setContent {
             AuraTheme {
-                AuraApp()
+                LockGate { AuraApp() }
             }
         }
     }

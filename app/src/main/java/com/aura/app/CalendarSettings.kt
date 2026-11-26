@@ -228,6 +228,27 @@ fun SettingsScreen(store: AuraStore, nav: Nav) {
             }
 
             AuraCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("פגישה שבועית מוצעת", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                        Text("כל יום חמישי ב־11:00, רק באישור שלך", fontSize = 13.sp, color = AuraColors.Muted)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = store.weeklyEnabled,
+                        onCheckedChange = { store.setWeeklyEnabled(it) }
+                    )
+                }
+            }
+
+            var showPin by remember { mutableStateOf(false) }
+            AuraCard(Modifier.fillMaxWidth()) {
+                Text("קוד כניסה", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton("שינוי קוד", { showPin = true })
+            }
+            if (showPin) ChangePinDialog { showPin = false }
+
+            AuraCard(Modifier.fillMaxWidth()) {
                 Text("התראות", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                 Spacer(Modifier.height(6.dp))
                 Text(
