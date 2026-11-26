@@ -188,7 +188,7 @@ class AuraStore(private val app: Context) {
         private set
     private var dismissed by mutableStateOf(prefs.getStringSet("weeklyDismissed", emptySet()) ?: emptySet())
 
-    fun setWeeklyEnabled(v: Boolean) {
+    fun updateWeeklyEnabled(v: Boolean) {
         weeklyEnabled = v
         prefs.edit().putBoolean("weeklyEnabled", v).apply()
     }

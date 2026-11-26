@@ -235,7 +235,7 @@ fun SettingsScreen(store: AuraStore, nav: Nav) {
                     }
                     androidx.compose.material3.Switch(
                         checked = store.weeklyEnabled,
-                        onCheckedChange = { store.setWeeklyEnabled(it) }
+                        onCheckedChange = { store.updateWeeklyEnabled(it) }
                     )
                 }
             }
