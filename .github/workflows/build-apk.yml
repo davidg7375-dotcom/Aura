@@ -29,8 +29,15 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/aura.jks"
+            if [ -f keystore/aura.jks ] && ! cmp -s keystore/aura.jks "$RUNNER_TEMP/aura.jks"; then
+              echo "::error title=secret-check::KEYSTORE_B64 secret differs from keystore file"; exit 1
+            fi
+            echo "::notice title=secret-check::KEYSTORE_B64 secret OK"
             echo "KEYSTORE_PATH=$RUNNER_TEMP/aura.jks" >> "$GITHUB_ENV"
             echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          else
+            echo "::error title=secret-check::KEYSTORE_B64 secret is missing"
+            [ -f keystore/aura.jks ] || exit 1
           fi
 
       - name: Build release APK
