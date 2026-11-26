@@ -240,6 +240,25 @@ fun SettingsScreen(store: AuraStore, nav: Nav) {
                 }
             }
 
+            AuraCard(Modifier.fillMaxWidth()) {
+                Text("עדכון האפליקציה", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "גרסה ${Updater.currentVersion(ctx)}" + if (Updater.message.isNotEmpty()) " · ${Updater.message}" else "",
+                    fontSize = 13.sp,
+                    color = AuraColors.Muted
+                )
+                Spacer(Modifier.height(10.dp))
+                if (Updater.phase == Updater.Phase.Available) {
+                    PrimaryButton("הורדה והתקנה", { Updater.downloadAndInstall(ctx) })
+                } else {
+                    SecondaryButton(
+                        if (Updater.phase == Updater.Phase.Checking) "בודק…" else "בדיקת עדכון",
+                        { Updater.check(ctx) }
+                    )
+                }
+            }
+
             var showPin by remember { mutableStateOf(false) }
             AuraCard(Modifier.fillMaxWidth()) {
                 Text("קוד כניסה", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)

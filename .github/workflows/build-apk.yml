@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,7 +23,19 @@ jobs:
         with:
           gradle-version: 8.10.2
 
+      - name: Prepare signing key (from Secrets if present)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/aura.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/aura.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          fi
+
       - name: Build release APK
+        env:
+          VERSION_CODE: ${{ github.run_number }}
         run: |
           set +e
           gradle assembleRelease --no-daemon --stacktrace > build.log 2>&1
@@ -42,3 +57,13 @@ jobs:
           name: Breathe-release
           path: Breathe-release.apk
           if-no-files-found: error
+
+      - name: Publish release (used by in-app update)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" Breathe-release.apk \
+            --repo "${{ github.repository }}" \
+            --title "Breathe ${{ github.run_number }}" \
+            --notes "גרסה ${{ github.run_number }}" --latest

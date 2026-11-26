@@ -12,17 +12,20 @@ android {
         applicationId = "com.aura.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = "1.0." + (System.getenv("VERSION_CODE") ?: "0")
     }
 
     // מפתח חתימה אישי קבוע (נמצא בתיקיית keystore) כדי שעדכונים עתידיים יותקנו מעל הגרסה הקיימת.
     signingConfigs {
         create("aura") {
-            storeFile = rootProject.file("keystore/aura.jks")
-            storePassword = "aura-personal"
+            // ב-CI המפתח יכול להגיע מ-Secrets (KEYSTORE_PATH + KEYSTORE_PASSWORD); אחרת הקובץ שבתיקיית keystore
+            val envPath = System.getenv("KEYSTORE_PATH")
+            val envPass = System.getenv("KEYSTORE_PASSWORD")
+            storeFile = if (envPath != null) file(envPath) else rootProject.file("keystore/aura.jks")
+            storePassword = envPass ?: "aura-personal"
             keyAlias = "aura"
-            keyPassword = "aura-personal"
+            keyPassword = envPass ?: "aura-personal"
         }
     }
 

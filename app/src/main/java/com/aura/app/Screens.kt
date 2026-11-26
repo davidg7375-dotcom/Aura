@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.sp
 fun HomeScreen(store: AuraStore, nav: Nav) {
     val next = store.nextSession()
     val recent = store.recentSessions(6)
+    val appCtx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { Updater.checkOnce(appCtx) }
     val openTotal = store.openTotal()
     val hasUnpaid = openTotal > 0
 
@@ -105,6 +107,14 @@ fun HomeScreen(store: AuraStore, nav: Nav) {
                 Text("אין פגישה קרובה", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.Ink)
                 Spacer(Modifier.height(14.dp))
                 SecondaryButton("הוספת פגישה", { nav.go(Route.Form()) })
+            }
+        }
+
+        if (Updater.phase == Updater.Phase.Available) {
+            Spacer(Modifier.height(12.dp))
+            AuraCard(Modifier.fillMaxWidth(), onClick = { nav.go(Route.Settings) }) {
+                Text("יש גרסה חדשה של Breathe", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AuraColors.GreenDark)
+                Text("לחצו כדי לעדכן", fontSize = 12.sp, color = AuraColors.Muted)
             }
         }
 
